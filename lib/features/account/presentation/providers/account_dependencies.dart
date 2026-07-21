@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../auth/presentation/providers/auth_dependencies.dart';
 import '../../data/datasources/account_local_datasource.dart';
 import '../../data/datasources/account_settings_local_datasource.dart';
 import '../../data/datasources/family_local_datasource.dart';
@@ -147,7 +148,10 @@ final familyRepositoryProvider = Provider<FamilyRepository>((ref) {
 });
 
 final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
-  return ProfileRepositoryImpl(ref.watch(profileLocalDatasourceProvider));
+  return ProfileRepositoryImpl(
+    ref.watch(profileLocalDatasourceProvider),
+    ref.watch(getMeUsecaseProvider),
+  );
 });
 
 final securityRepositoryProvider = Provider<SecurityRepository>((ref) {

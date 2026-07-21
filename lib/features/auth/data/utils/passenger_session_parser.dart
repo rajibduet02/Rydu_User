@@ -37,7 +37,7 @@ abstract final class PassengerSessionParser {
     return null;
   }
 
-  static UserModel? _parseUser(dynamic raw) {
+  static UserModel? parseUser(dynamic raw) {
     if (raw is! Map) return null;
     final map = Map<String, dynamic>.from(raw);
     final id = map['id']?.toString() ?? map['userId']?.toString();
@@ -47,6 +47,9 @@ abstract final class PassengerSessionParser {
       id: id,
       email: map['email']?.toString(),
       displayName: map['name']?.toString() ?? map['displayName']?.toString(),
+      role: map['role']?.toString(),
     );
   }
+
+  static UserModel? _parseUser(dynamic raw) => parseUser(raw);
 }

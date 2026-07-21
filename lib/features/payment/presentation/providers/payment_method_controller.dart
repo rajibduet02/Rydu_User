@@ -11,7 +11,7 @@ abstract final class PaymentAccountTypes {
 
 class PaymentMethodState {
   const PaymentMethodState({
-    this.selectedPaymentMethod = 'Cash',
+    this.selectedPaymentMethod = '',
     this.selectedAccountType = PaymentAccountTypes.personal,
     this.isRyduBalanceEnabled = false,
     this.ryduCashBalance = 0,
@@ -60,9 +60,22 @@ class PaymentMethodController extends Notifier<PaymentMethodState> {
   Future<void> loadPaymentData() async {
     try {
       final balance = await ref.read(getWalletBalanceUsecaseProvider).call();
-      state = state.copyWith(ryduCashBalance: balance, clearError: true);
+      final methods = await ref.read(getPaymentMethodsUsecaseProvider).call();
+      String? preferredLabel;
+      for (final method in methods) {
+        if (method.isDefault) {
+          preferredLabel = method.label;
+          break;
+        }
+      }
+      preferredLabel ??= methods.isNotEmpty ? methods.first.label : null;
+      state = state.copyWith(
+        ryduCashBalance: balance,
+        selectedPaymentMethod: preferredLabel ?? state.selectedPaymentMethod,
+        clearError: true,
+      );
     } catch (_) {
-      // Keep default balance on failure.
+      // Keep defaults on failure.
     }
   }
 
@@ -70,7 +83,7 @@ class PaymentMethodController extends Notifier<PaymentMethodState> {
     state = state.copyWith(clearError: true);
   }
 
-  void reset({String paymentMethod = 'Cash'}) {
+  void reset({String paymentMethod = ''}) {
     state = PaymentMethodState(selectedPaymentMethod: paymentMethod);
   }
 

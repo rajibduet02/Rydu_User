@@ -10,6 +10,13 @@ class RideOptionEntity {
     this.originalPrice,
     this.iconEmoji = '🚗',
     this.discount = false,
+    this.serviceCode,
+    this.currency,
+    this.finalFare,
+    this.originalFare,
+    this.discountAmount,
+    this.driverEtaMinutes,
+    this.promotion,
   });
 
   final String id;
@@ -22,4 +29,11 @@ class RideOptionEntity {
   final String? originalPrice;
   final String iconEmoji;
   final bool discount;
+  final String? serviceCode;
+  final String? currency;
+  final double? finalFare;
+  final double? originalFare;
+  final double? discountAmount;
+  final int? driverEtaMinutes;
+  final String? promotion;
 }

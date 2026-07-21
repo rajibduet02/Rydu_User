@@ -18,6 +18,9 @@ abstract final class RideFlowExtra {
       name: name,
       address: m['address'] as String? ?? '',
       distance: m['distance'] as String? ?? '',
+      latitude: (m['latitude'] as num?)?.toDouble(),
+      longitude: (m['longitude'] as num?)?.toDouble(),
+      placeId: m['placeId'] as String?,
     );
   }
 
@@ -28,6 +31,9 @@ abstract final class RideFlowExtra {
       'name': d.name,
       'address': d.address,
       'distance': d.distance,
+      'latitude': d.latitude,
+      'longitude': d.longitude,
+      'placeId': d.placeId,
     };
   }
 
@@ -41,10 +47,16 @@ abstract final class RideFlowExtra {
     required String selectedType,
     required String pickupLocation,
     SuggestedLocation? destination,
+    Map<String, dynamic>? pickupPlace,
+    Map<String, dynamic>? dropoffPlace,
+    Map<String, dynamic>? routePreview,
   }) => {
     'selectedType': selectedType,
     'pickupLocation': pickupLocation,
     'destination': destinationMap(destination),
+    'pickupPlace': ?pickupPlace,
+    'dropoffPlace': ?dropoffPlace,
+    'routePreview': ?routePreview,
   };
 
   static Map<String, dynamic> buildConfirmPickupExtra({
@@ -71,6 +83,7 @@ abstract final class RideFlowExtra {
     required String estimatedFare,
     required String paymentMethod,
     String? pickupSpotName,
+    String? bookingId,
   }) => {
     ...buildConfirmPickupExtra(
       selectedType: selectedType,
@@ -81,5 +94,6 @@ abstract final class RideFlowExtra {
       paymentMethod: paymentMethod,
     ),
     'pickupSpotName': pickupSpotName,
+    'bookingId': ?bookingId,
   };
 }

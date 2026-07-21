@@ -5,6 +5,7 @@ import '../../../../core/constants/api_constants.dart';
 import '../../../../core/constants/auth_constants.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_response_parser.dart';
+import '../../../../core/storage/secure_storage_service.dart';
 import '../../../../shared/models/user_model.dart';
 import '../models/session_model.dart';
 import '../utils/auth_debug_logger.dart';
@@ -14,9 +15,10 @@ import '../../domain/exceptions/auth_exception.dart';
 import 'auth_remote_datasource.dart';
 
 class AuthRemoteDatasourceImpl implements AuthRemoteDatasource {
-  AuthRemoteDatasourceImpl(this._apiClient);
+  AuthRemoteDatasourceImpl(this._apiClient, this._secureStorage);
 
   final ApiClient _apiClient;
+  final SecureStorageService _secureStorage;
 
   @override
   Future<void> registerPassenger({
@@ -91,18 +93,49 @@ class AuthRemoteDatasourceImpl implements AuthRemoteDatasource {
   }
 
   @override
-  Future<void> logoutPassenger({String? sessionId}) async {
+  Future<void> logoutPassenger() async {
+    final tokenLabel = await _backendSessionTokenLabel();
+
+    if (kDebugMode) {
+      debugPrint('════════ AUTH LOGOUT ════════');
+      debugPrint('POST ${ApiConstants.baseUrl}${AuthConstants.logoutPath}');
+      debugPrint('Backend session token: $tokenLabel');
+    }
+
     try {
-      await _apiClient.dio.post<void>(
+      final response = await _apiClient.dio.post<dynamic>(
         AuthConstants.logoutPath,
-        data: {
-          if (sessionId != null && sessionId.isNotEmpty) 'sessionId': sessionId,
-        },
       );
+
+      if (kDebugMode) {
+        debugPrint('← Status: ${response.statusCode}');
+        debugPrint('Response: ${response.data}');
+      }
+
+      final raw = response.data;
+      if (raw is! Map) {
+        throw const AuthException('Invalid server response.');
+      }
+
+      final root = Map<String, dynamic>.from(raw);
+      if (root['success'] == false) {
+        final error = root['error'];
+        if (error is Map) {
+          final message = error['message'];
+          if (message is String && message.trim().isNotEmpty) {
+            throw AuthException(message.trim());
+          }
+        }
+        throw const AuthException('Something went wrong. Please try again.');
+      }
     } on DioException catch (e) {
-      final statusCode = e.response?.statusCode;
-      if (statusCode == 404 || statusCode == 501) return;
+      if (kDebugMode) {
+        debugPrint('← Status: ${e.response?.statusCode}');
+        debugPrint('Response: ${e.response?.data}');
+      }
       throw AuthErrorMapper.fromDio(e);
+    } on FormatException {
+      throw const AuthException('Invalid server response.');
     }
   }
 
@@ -176,5 +209,65 @@ class AuthRemoteDatasourceImpl implements AuthRemoteDatasource {
   Future<void> verifyOtp({required String phone, required String code}) async {}
 
   @override
-  Future<UserModel?> currentUser() async => null;
+  Future<UserModel?> currentUser() async {
+    final tokenLabel = await _tokenPresenceLabel();
+
+    if (kDebugMode) {
+      debugPrint('════════ AUTH GET ME ════════');
+      debugPrint('GET ${ApiConstants.baseUrl}${AuthConstants.mePath}');
+      debugPrint('Authorization: Bearer $tokenLabel');
+    }
+
+    try {
+      final response = await _apiClient.dio.get<dynamic>(AuthConstants.mePath);
+
+      if (kDebugMode) {
+        debugPrint('Status: ${response.statusCode}');
+        debugPrint('Response: ${response.data}');
+        debugPrint('════════════════════════════');
+      }
+
+      final raw = response.data;
+      if (raw is! Map) {
+        throw const AuthException('Invalid server response.');
+      }
+
+      final root = Map<String, dynamic>.from(raw);
+      if (root['success'] == false) {
+        final error = root['error'];
+        if (error is Map) {
+          final message = error['message'];
+          if (message is String && message.trim().isNotEmpty) {
+            throw AuthException(message.trim());
+          }
+        }
+        throw const AuthException('Something went wrong. Please try again.');
+      }
+
+      return PassengerSessionParser.parseUser(
+        ApiResponseParser.unwrapData(root),
+      );
+    } on DioException catch (e) {
+      if (kDebugMode) {
+        debugPrint('Status: ${e.response?.statusCode}');
+        debugPrint('Response: ${e.response?.data}');
+        debugPrint('════════════════════════════');
+      }
+      throw AuthErrorMapper.fromDio(e);
+    } on FormatException {
+      throw const AuthException('Invalid server response.');
+    }
+  }
+
+  Future<String> _backendSessionTokenLabel() async {
+    final token = await _secureStorage.read(AuthConstants.backendJwtKey);
+    return token != null && token.isNotEmpty ? 'PRESENT' : 'MISSING';
+  }
+
+  Future<String> _tokenPresenceLabel() async {
+    final token = await _secureStorage.read(AuthConstants.backendJwtKey);
+    return token != null && token.isNotEmpty
+        ? '[TOKEN PRESENT - DO NOT PRINT FULL TOKEN]'
+        : '[NO TOKEN]';
+  }
 }

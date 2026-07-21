@@ -2,9 +2,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/router/app_router.dart';
 import '../../../../app/router/route_names.dart';
+import '../../../auth/domain/exceptions/auth_exception.dart';
 import '../../../auth/presentation/providers/auth_dependencies.dart';
 import '../../../auth/presentation/providers/auth_session_provider.dart';
+import '../../../ride_booking/presentation/providers/ride_booking_dependencies.dart';
 import 'account_dependencies.dart';
+import 'profile_details_provider.dart';
 
 class AccountState {
   const AccountState({
@@ -107,12 +110,16 @@ class AccountController extends Notifier<AccountState> {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       await ref.read(logoutUsecaseProvider).call();
+      await ref.read(passengerSocketServiceProvider).disconnect();
       ref.read(authSessionProvider.notifier).markUnauthenticated();
-      state = state.copyWith(isLoading: false);
+      ref.read(profileDetailsControllerProvider.notifier).resetForLogout();
+      state = const AccountState();
+    } on AuthException catch (e) {
+      state = state.copyWith(isLoading: false, errorMessage: e.message);
     } catch (_) {
       state = state.copyWith(
         isLoading: false,
-        errorMessage: 'Could not sign out completely.',
+        errorMessage: 'Could not sign out. Please try again.',
       );
     } finally {
       _logoutInFlight = false;

@@ -4,6 +4,7 @@ abstract final class AuthConstants {
   static const loginPath = '/api/v1/passenger/auth/login';
   static const logoutPath = '/api/v1/passenger/auth/logout';
   static const forgotPasswordPath = '/api/v1/passenger/auth/forgot-password';
+  static const mePath = '/api/v1/passenger/auth/me';
 
   static const backendJwtKey = 'backend_jwt';
   static const sessionIdKey = 'session_id';

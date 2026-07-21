@@ -1,3 +1,4 @@
+import '../constants/profile_demo_data.dart';
 import '../models/profile_details_model.dart';
 
 abstract interface class ProfileLocalDatasource {
@@ -10,12 +11,12 @@ class ProfileLocalDatasourceImpl implements ProfileLocalDatasource {
     // TODO: Load user profile from API when backend is ready.
     await Future<void>.delayed(const Duration(milliseconds: 200));
     return const ProfileDetailsModel(
-      userName: 'Afshara Tasnim',
-      phoneNumber: '+8801724536187',
-      email: 'afsharatasnim@example.com',
-      rating: '5.0',
-      membershipName: 'RYD U ONE MEMBER',
-      isPhoneVerified: true,
+      userName: ProfileDemoData.userName,
+      phoneNumber: ProfileDemoData.phoneNumber,
+      email: ProfileDemoData.email,
+      rating: ProfileDemoData.rating,
+      membershipName: ProfileDemoData.membershipName,
+      isPhoneVerified: ProfileDemoData.isPhoneVerified,
     );
   }
 }

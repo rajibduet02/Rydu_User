@@ -12,5 +12,12 @@ class RideOptionModel extends RideOptionEntity {
     super.originalPrice,
     super.iconEmoji,
     super.discount,
+    super.serviceCode,
+    super.currency,
+    super.finalFare,
+    super.originalFare,
+    super.discountAmount,
+    super.driverEtaMinutes,
+    super.promotion,
   });
 }

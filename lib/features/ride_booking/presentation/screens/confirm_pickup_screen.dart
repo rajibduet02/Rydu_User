@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -22,11 +24,6 @@ class ConfirmPickupScreen extends ConsumerStatefulWidget {
 class _ConfirmPickupScreenState extends ConsumerState<ConfirmPickupScreen> {
   bool _initialized = false;
 
-  static const _pickupSpots = [
-    ('Near 35 Road No. 2 - Spot 1', 'Near 35 Road No. 2'),
-    ('Near 35 Road No. 2 - Spot 2', 'Near 35 Road No. 2'),
-  ];
-
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(rideBookingControllerProvider);
@@ -40,11 +37,13 @@ class _ConfirmPickupScreenState extends ConsumerState<ConfirmPickupScreen> {
         c.initializeFromExtra(
           RideFlowExtra.parseMap(GoRouterState.of(context).extra),
         );
+        unawaited(c.loadPickupSpots());
       });
     }
 
     final vehicle = state.selectedVehicle;
     final dest = state.selectedDestination?.name;
+    final spots = state.pickupSpots;
 
     return Scaffold(
       backgroundColor: RideBookingTokens.background,
@@ -211,20 +210,39 @@ class _ConfirmPickupScreenState extends ConsumerState<ConfirmPickupScreen> {
                     },
                   ),
                   const SizedBox(height: 20),
-                  for (var i = 0; i < _pickupSpots.length; i++) ...[
+                  if (state.isLoadingPickupSpots)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Center(
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  else if (spots.isEmpty)
                     PickupLocationCard(
-                      name: _pickupSpots[i].$1,
-                      address: _pickupSpots[i].$2,
-                      isSelected: state.selectedPickupSpotIndex == i,
-                      onTap: () => c.selectPickupSpot(i),
-                    ),
-                    if (i < _pickupSpots.length - 1) const SizedBox(height: 12),
-                  ],
+                      name: state.pickupLocation.isNotEmpty
+                          ? state.pickupLocation
+                          : 'Selected pickup',
+                      address: state.pickupPlace?.address ?? '',
+                      isSelected: true,
+                      onTap: () {},
+                    )
+                  else
+                    for (var i = 0; i < spots.length; i++) ...[
+                      PickupLocationCard(
+                        name: spots[i].label,
+                        address: spots[i].address ?? spots[i].label,
+                        isSelected: state.selectedPickupSpotIndex == i,
+                        onTap: () => c.selectPickupSpot(i),
+                      ),
+                      if (i < spots.length - 1) const SizedBox(height: 12),
+                    ],
                   const SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
-                      onPressed: state.isLoading ? null : c.confirmPickup,
+                      onPressed: state.isLoading || state.isCreatingBooking
+                          ? null
+                          : c.confirmPickup,
                       style: FilledButton.styleFrom(
                         backgroundColor: Colors.white,
                         foregroundColor: Colors.black,

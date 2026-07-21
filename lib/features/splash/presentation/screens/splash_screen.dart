@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/router/app_router.dart';
 import '../../../../app/router/route_names.dart';
 import '../../../auth/presentation/providers/auth_session_provider.dart';
+import '../../../ride_booking/presentation/providers/ride_booking_provider.dart';
 import '../theme/splash_layout.dart';
 import '../theme/splash_tokens.dart';
 import '../widgets/splash_backdrop.dart';
@@ -60,19 +61,30 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   }
 
   Future<void> _bootstrap() async {
-    unawaited(ref.read(authSessionProvider.notifier).restore());
-    await Future<void>.delayed(const Duration(seconds: 2));
+    await ref.read(authSessionProvider.notifier).restore();
     if (!mounted) return;
-    _navigateFromSession();
+
+    final session = ref.read(authSessionProvider);
+    if (session.isAuthenticated) {
+      try {
+        // Prefer Home card over forced Finding Driver navigation.
+        await ref
+            .read(rideBookingControllerProvider.notifier)
+            .restoreActiveBooking(navigate: false)
+            .timeout(const Duration(seconds: 4));
+      } catch (_) {
+        // Continue to home if active-booking restore fails.
+      }
+    }
+
+    await Future<void>.delayed(const Duration(milliseconds: 800));
+    if (!mounted) return;
+    _navigateTo(session.isAuthenticated ? RouteNames.home : RouteNames.auth);
   }
 
-  void _navigateFromSession() {
+  void _navigateTo(String destination) {
     if (!mounted || _navigated) return;
-    final session = ref.read(authSessionProvider);
     _navigated = true;
-    final destination = session.isAuthenticated
-        ? RouteNames.home
-        : RouteNames.auth;
     ref.read(goRouterProvider).go(destination);
   }
 

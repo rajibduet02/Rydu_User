@@ -2,6 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/router/app_router.dart';
 import '../../../../app/router/route_names.dart';
+import '../../../auth/domain/exceptions/auth_exception.dart';
+import '../../../auth/presentation/providers/auth_session_provider.dart';
+import '../../data/constants/profile_demo_data.dart';
 import 'account_dependencies.dart';
 
 const kProfileTabPersonal = 'personal';
@@ -58,14 +61,37 @@ class ProfileDetailsState {
 }
 
 class ProfileDetailsController extends Notifier<ProfileDetailsState> {
+  bool _loadInFlight = false;
+
   @override
-  ProfileDetailsState build() => const ProfileDetailsState();
+  ProfileDetailsState build() => const ProfileDetailsState(
+    userName: ProfileDemoData.userName,
+    phoneNumber: ProfileDemoData.phoneNumber,
+    email: ProfileDemoData.email,
+    rating: ProfileDemoData.rating,
+    membershipName: ProfileDemoData.membershipName,
+    isPhoneVerified: ProfileDemoData.isPhoneVerified,
+  );
 
   void clearError() {
     state = state.copyWith(clearError: true);
   }
 
+  void resetForLogout() {
+    _loadInFlight = false;
+    state = const ProfileDetailsState(
+      userName: ProfileDemoData.userName,
+      phoneNumber: ProfileDemoData.phoneNumber,
+      email: ProfileDemoData.email,
+      rating: ProfileDemoData.rating,
+      membershipName: ProfileDemoData.membershipName,
+      isPhoneVerified: ProfileDemoData.isPhoneVerified,
+    );
+  }
+
   Future<void> loadProfile() async {
+    if (_loadInFlight) return;
+    _loadInFlight = true;
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final profile = await ref.read(getProfileDetailsUsecaseProvider).call();
@@ -78,11 +104,15 @@ class ProfileDetailsController extends Notifier<ProfileDetailsState> {
         isPhoneVerified: profile.isPhoneVerified,
         isLoading: false,
       );
+    } on AuthException catch (e) {
+      if (e.statusCode == 401) {
+        ref.read(authSessionProvider.notifier).markUnauthenticated();
+      }
+      state = state.copyWith(isLoading: false);
     } catch (_) {
-      state = state.copyWith(
-        isLoading: false,
-        errorMessage: 'Could not load profile.',
-      );
+      state = state.copyWith(isLoading: false);
+    } finally {
+      _loadInFlight = false;
     }
   }
 

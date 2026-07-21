@@ -13,6 +13,8 @@ abstract interface class AuthRepository {
 
   Future<UserEntity?> getCurrentUser();
 
+  Future<UserEntity?> getMe();
+
   Future<void> sendOtp({required String phone});
 
   Future<void> verifyOtp({required String phone, required String code});

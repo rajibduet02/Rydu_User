@@ -14,7 +14,7 @@ abstract interface class AuthRemoteDatasource {
     String? deviceInfo,
   });
 
-  Future<void> logoutPassenger({String? sessionId});
+  Future<void> logoutPassenger();
 
   Future<String> requestPasswordReset({required String email});
 

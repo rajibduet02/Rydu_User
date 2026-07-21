@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../../../../shared/models/user_model.dart';
 import '../../domain/entities/user_entity.dart';
 import '../../domain/exceptions/auth_exception.dart';
@@ -18,6 +20,7 @@ class AuthRepositoryImpl implements AuthRepository {
       id: user.id,
       email: user.email,
       displayName: user.displayName,
+      role: user.role,
     );
   }
 
@@ -73,6 +76,13 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
+  Future<UserEntity?> getMe() async {
+    final user = await _remote.currentUser();
+    if (user == null) return null;
+    return _mapUser(user);
+  }
+
+  @override
   Future<void> sendOtp({required String phone}) =>
       _remote.sendOtp(phone: phone);
 
@@ -86,14 +96,28 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<void> signOut() async {
-    final session = await _local.getSession();
     try {
-      await _remote.logoutPassenger(sessionId: session?.sessionId);
-    } catch (_) {
-      // Continue local cleanup even if remote logout fails.
+      await _remote.logoutPassenger();
+    } on AuthException catch (e) {
+      if (e.statusCode == 401 || e.statusCode == 403) {
+        await _clearLocalAuth();
+        return;
+      }
+      rethrow;
+    }
+    await _clearLocalAuth();
+  }
+
+  Future<void> _clearLocalAuth() async {
+    if (kDebugMode) {
+      debugPrint('Clearing local auth session...');
     }
     await _local.clearSession();
     await _auth0.clearCredentials();
+    if (kDebugMode) {
+      debugPrint('Logout completed');
+      debugPrint('════════════════════════════');
+    }
   }
 
   @override

@@ -15,18 +15,21 @@ class PaymentRepositoryImpl implements PaymentRepository {
 
   @override
   Future<List<PaymentMethodEntity>> getPaymentMethods() async {
-    final local = await _local.fetchMethods();
-    if (local.isNotEmpty) return local;
-    final remote = await _remote.fetchMethods();
-    return remote
-        .map(
-          (m) => PaymentMethodEntity(
-            id: m.id,
-            label: m.label,
-            isDefault: m.isDefault,
-          ),
-        )
-        .toList();
+    try {
+      final remote = await _remote.fetchMethods();
+      return remote
+          .map(
+            (m) => PaymentMethodEntity(
+              id: m.id,
+              label: m.label,
+              isDefault: m.isDefault,
+            ),
+          )
+          .toList();
+    } catch (_) {
+      // Do not substitute hardcoded local payment catalogs in the live path.
+      return const [];
+    }
   }
 
   @override

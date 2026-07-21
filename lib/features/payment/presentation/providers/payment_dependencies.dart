@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../app/providers/dio_provider.dart';
 import '../../data/datasources/payment_local_datasource.dart';
 import '../../data/datasources/payment_remote_datasource.dart';
 import '../../data/repositories/payment_repository_impl.dart';
@@ -18,7 +19,7 @@ final paymentLocalDatasourceProvider = Provider<PaymentLocalDatasource>((ref) {
 final paymentRemoteDatasourceProvider = Provider<PaymentRemoteDatasource>((
   ref,
 ) {
-  return PaymentRemoteDatasourceImpl();
+  return PaymentRemoteDatasourceImpl(ref.watch(apiClientProvider));
 });
 
 final paymentRepositoryProvider = Provider<PaymentRepository>((ref) {

@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/router/shell_scroll_padding.dart';
+import '../../../ride_booking/presentation/providers/ride_booking_provider.dart';
 import '../providers/home_controller.dart';
 import '../theme/home_screen_tokens.dart';
+import '../widgets/home_active_ride_card.dart';
 import '../widgets/home_promo_card.dart';
 import '../widgets/home_search_bar.dart';
 import '../widgets/home_top_bar.dart';
@@ -16,20 +20,47 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen>
+    with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       ref.read(homeControllerProvider.notifier).resetBottomNav();
+      unawaited(_restoreActiveBookingQuietly());
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_restoreActiveBookingQuietly());
+    }
+  }
+
+  Future<void> _restoreActiveBookingQuietly() async {
+    try {
+      await ref
+          .read(rideBookingControllerProvider.notifier)
+          .restoreActiveBooking(navigate: false);
+    } catch (_) {
+      // Keep browsing Home; card appears if restore succeeds later.
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final s = ref.watch(homeControllerProvider);
     final c = ref.read(homeControllerProvider.notifier);
+    final ride = ref.watch(rideBookingControllerProvider);
     final w = MediaQuery.sizeOf(context).width;
     final hPad = (w * 0.06).clamp(20.0, 24.0);
     final sectionGap = (w * 0.045).clamp(18.0, 24.0);
@@ -95,6 +126,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               onSearchTap: c.openSearch,
               onLaterTap: c.openReserveFlow,
             ),
+            if (ride.hasActiveBooking) ...[
+              const SizedBox(height: 16),
+              const HomeActiveRideCard(),
+            ],
             if (s.errorMessage != null) ...[
               const SizedBox(height: 8),
               Text(

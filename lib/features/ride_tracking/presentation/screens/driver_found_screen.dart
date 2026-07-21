@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../../../app/theme/app_colors.dart';
+import '../../../../app/router/route_names.dart';
 import '../../../ride_booking/presentation/models/ride_flow_extra.dart';
+import '../../../ride_booking/presentation/providers/ride_booking_provider.dart';
 import '../../../ride_booking/presentation/theme/ride_booking_tokens.dart';
+import '../../../ride_booking/presentation/widgets/active_ride_map.dart';
 import '../providers/driver_found_provider.dart';
 import '../widgets/driver_info_card.dart';
 import '../widgets/trip_details_card.dart';
@@ -20,6 +22,7 @@ class _DriverFoundScreenState extends ConsumerState<DriverFoundScreen> {
   bool _initialized = false;
   bool _showCancelSheet = false;
   bool _showCancelConfirm = false;
+  String? _cancelReason;
 
   static const _cancelReasons = [
     ('🚗', 'Driver not getting closer'),
@@ -32,8 +35,26 @@ class _DriverFoundScreenState extends ConsumerState<DriverFoundScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ride = ref.watch(rideBookingControllerProvider);
     final state = ref.watch(driverFoundControllerProvider);
     final c = ref.read(driverFoundControllerProvider.notifier);
+
+    ref.listen<RideBookingState>(rideBookingControllerProvider, (prev, next) {
+      if (!mounted) return;
+      c.syncFromRideBooking(next);
+      final booking = ref.read(rideBookingControllerProvider.notifier);
+      if (next.phase == RidePlanningPhase.cancelled ||
+          next.phase == RidePlanningPhase.completed) {
+        if (booking.hasNavigatedForPhase(next.phase)) return;
+        booking.markPhaseNavigated(next.phase);
+        context.go(RouteNames.home);
+      } else if (next.phase == RidePlanningPhase.expired ||
+          next.phase == RidePlanningPhase.noDrivers) {
+        if (booking.hasNavigatedForPhase(next.phase)) return;
+        booking.markPhaseNavigated(next.phase);
+        context.pushReplacement(RouteNames.findingDriver);
+      }
+    });
 
     if (!_initialized) {
       _initialized = true;
@@ -44,6 +65,10 @@ class _DriverFoundScreenState extends ConsumerState<DriverFoundScreen> {
         );
       });
     }
+
+    final title = state.eta.isNotEmpty
+        ? 'Pickup in ${state.eta}'
+        : (state.tripStatus.isNotEmpty ? state.tripStatus : 'Driver assigned');
 
     return Scaffold(
       backgroundColor: RideBookingTokens.background,
@@ -56,31 +81,36 @@ class _DriverFoundScreenState extends ConsumerState<DriverFoundScreen> {
                 Expanded(
                   child: Stack(
                     children: [
-                      const DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            colors: [
-                              AppDarkSurfaces.border,
-                              AppDarkSurfaces.surfaceContainerLow,
-                            ],
+                      const Positioned.fill(
+                        child: ActiveRideMap(showDriver: true),
+                      ),
+                      if (ride.socketStatus ==
+                              ActiveRideSocketStatus.reconnecting ||
+                          ride.socketStatus ==
+                              ActiveRideSocketStatus.disconnected)
+                        Positioned(
+                          top: MediaQuery.paddingOf(context).top + 12,
+                          left: 16,
+                          right: 72,
+                          child: Material(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(8),
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              child: Text(
+                                'Reconnecting… ride status preserved',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                        child: SizedBox.expand(),
-                      ),
-                      Center(
-                        child: Opacity(
-                          opacity: 0.2,
-                          child: CustomPaint(
-                            size: const Size(300, 400),
-                            painter: _DriverRoutePainter(),
-                          ),
-                        ),
-                      ),
-                      const Center(
-                        child: Text('🚗', style: TextStyle(fontSize: 48)),
-                      ),
                       Positioned(
                         top: MediaQuery.paddingOf(context).top + 12,
                         right: 16,
@@ -128,7 +158,7 @@ class _DriverFoundScreenState extends ConsumerState<DriverFoundScreen> {
                           ),
                         ),
                         Text(
-                          'Pickup in ${state.eta}',
+                          title,
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                             color: RideBookingTokens.titleWhite,
@@ -156,21 +186,32 @@ class _DriverFoundScreenState extends ConsumerState<DriverFoundScreen> {
                         ),
                         const SizedBox(height: 20),
                         _StatusCard(
-                          pickupSpotName: state.pickupSpotName,
-                          tripStatus: state.tripStatus,
+                          pickupSpotName: state.pickupSpotName.isNotEmpty
+                              ? state.pickupSpotName
+                              : state.pickupLocation,
+                          tripStatus: state.tripStatus.isNotEmpty
+                              ? state.tripStatus
+                              : 'Active',
                           onMore: c.toggleTripDetails,
                         ),
                         const SizedBox(height: 12),
                         DriverInfoCard(
-                          plateNumber: state.plateNumber,
-                          driverName: state.driverName,
+                          plateNumber: state.plateNumber.isNotEmpty
+                              ? state.plateNumber
+                              : '—',
+                          driverName: state.driverName.isNotEmpty
+                              ? state.driverName
+                              : 'Driver assigned',
                           onMessage: c.messageDriver,
                           onCall: () {
                             c.callDriver();
+                            final phone = ride.assignedDriver?.phone;
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
+                              SnackBar(
                                 content: Text(
-                                  'Calling driver +880 1234-567890...',
+                                  phone != null && phone.isNotEmpty
+                                      ? 'Calling driver $phone…'
+                                      : 'Driver phone unavailable',
                                 ),
                               ),
                             );
@@ -209,8 +250,9 @@ class _DriverFoundScreenState extends ConsumerState<DriverFoundScreen> {
               _CancelReasonSheet(
                 reasons: _cancelReasons,
                 onClose: () => setState(() => _showCancelSheet = false),
-                onSelect: (_) {
+                onSelect: (reason) {
                   setState(() {
+                    _cancelReason = reason;
                     _showCancelSheet = false;
                     _showCancelConfirm = true;
                   });
@@ -218,10 +260,20 @@ class _DriverFoundScreenState extends ConsumerState<DriverFoundScreen> {
               ),
             if (_showCancelConfirm)
               _CancelConfirmDialog(
-                driverName: state.driverName,
+                driverName: state.driverName.isNotEmpty
+                    ? state.driverName
+                    : 'your driver',
                 onClose: () => setState(() => _showCancelConfirm = false),
                 onYesCancel: () async {
-                  await c.cancelRide();
+                  final ok = await c.cancelRide(
+                    reason: _cancelReason ?? 'Passenger cancelled',
+                  );
+                  if (!context.mounted) return;
+                  if (ok) {
+                    context.go(RouteNames.home);
+                  } else {
+                    setState(() => _showCancelConfirm = false);
+                  }
                 },
                 onFindAnother: () => setState(() => _showCancelConfirm = false),
                 onNo: () => setState(() => _showCancelConfirm = false),
@@ -532,38 +584,4 @@ class _CancelConfirmDialog extends StatelessWidget {
       ],
     );
   }
-}
-
-class _DriverRoutePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = RideBookingTokens.accent
-      ..strokeWidth = 4
-      ..style = PaintingStyle.stroke;
-
-    final path = Path()
-      ..moveTo(50, size.height - 50)
-      ..quadraticBezierTo(
-        size.width * 0.5,
-        size.height * 0.5,
-        size.width - 50,
-        100,
-      );
-    canvas.drawPath(path, paint);
-
-    canvas.drawCircle(
-      Offset(50, size.height - 50),
-      12,
-      Paint()..color = RideBookingTokens.accent,
-    );
-    canvas.drawCircle(
-      Offset(size.width - 50, 100),
-      12,
-      Paint()..color = const Color(0xFF22C55E),
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

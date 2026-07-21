@@ -6,6 +6,7 @@ import '../../../../app/router/app_router.dart';
 import '../../../../app/router/route_names.dart';
 import '../../../onboarding/presentation/theme/welcome_tokens.dart';
 import '../../../onboarding/presentation/widgets/welcome_action_button.dart';
+import '../../../ride_booking/presentation/providers/ride_booking_provider.dart';
 import '../providers/auth_dependencies.dart';
 import '../providers/auth_session_provider.dart';
 import '../../domain/exceptions/auth_exception.dart';
@@ -104,6 +105,12 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
           .call(email: email, password: _passwordController.text);
       if (!mounted) return;
       ref.read(authSessionProvider.notifier).markAuthenticated(user);
+      try {
+        await ref
+            .read(rideBookingControllerProvider.notifier)
+            .restoreActiveBooking(navigate: false);
+      } catch (_) {}
+      if (!mounted) return;
       ref.read(goRouterProvider).go(RouteNames.home);
     } on AuthException catch (e) {
       if (!mounted) return;

@@ -3,9 +3,14 @@ import 'package:flutter/material.dart';
 import '../theme/finding_driver_tokens.dart';
 
 class RideRequestedCard extends StatelessWidget {
-  const RideRequestedCard({super.key, required this.pickupSpotName});
+  const RideRequestedCard({
+    super.key,
+    required this.pickupSpotName,
+    this.fareLabel,
+  });
 
   final String pickupSpotName;
+  final String? fareLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -89,9 +94,20 @@ class RideRequestedCard extends StatelessWidget {
                     fontSize: titleSize,
                   ),
                 ),
+                if (fareLabel != null && fareLabel!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    fareLabel!,
+                    style: TextStyle(
+                      color: FindingDriverTokens.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: titleSize,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 8),
                 Text(
-                  'Your next driver is ready and nearby ride, only',
+                  'Waiting for a nearby driver to accept your ride.',
                   style: TextStyle(
                     color: FindingDriverTokens.muted,
                     fontSize: bodySize,

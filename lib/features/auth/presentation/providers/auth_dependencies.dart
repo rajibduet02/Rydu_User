@@ -8,6 +8,7 @@ import '../../data/datasources/auth_remote_datasource_impl.dart';
 import '../../data/repositories/auth_repository_impl.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../../domain/usecases/get_current_user_usecase.dart';
+import '../../domain/usecases/get_me_usecase.dart';
 import '../../domain/usecases/login_usecase.dart';
 import '../../domain/usecases/logout_usecase.dart';
 import '../../domain/usecases/register_usecase.dart';
@@ -24,7 +25,10 @@ final auth0DatasourceProvider = Provider<Auth0Datasource>((ref) {
 });
 
 final authRemoteDatasourceProvider = Provider<AuthRemoteDatasourceImpl>((ref) {
-  return AuthRemoteDatasourceImpl(ref.watch(apiClientProvider));
+  return AuthRemoteDatasourceImpl(
+    ref.watch(apiClientProvider),
+    ref.watch(secureStorageServiceProvider),
+  );
 });
 
 final authLocalDatasourceProvider = Provider<AuthLocalDatasource>((ref) {
@@ -84,6 +88,10 @@ final logoutUsecaseProvider = Provider<LogoutUsecase>((ref) {
 
 final getCurrentUserUsecaseProvider = Provider<GetCurrentUserUsecase>((ref) {
   return GetCurrentUserUsecase(ref.watch(authRepositoryProvider));
+});
+
+final getMeUsecaseProvider = Provider<GetMeUsecase>((ref) {
+  return GetMeUsecase(ref.watch(authRepositoryProvider));
 });
 
 /// One-time message shown on the sign-in screen (e.g. after successful sign-up).

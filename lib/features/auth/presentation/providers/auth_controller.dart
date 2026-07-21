@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/entities/user_entity.dart';
+import '../../../ride_booking/presentation/providers/ride_booking_dependencies.dart';
 import 'auth_dependencies.dart';
 
 class AuthState {
@@ -104,6 +105,7 @@ class AuthController extends Notifier<AuthState> {
 
   Future<void> signOut() async {
     await ref.read(logoutUsecaseProvider).call();
+    await ref.read(passengerSocketServiceProvider).disconnect();
     state = const AuthState();
   }
 }

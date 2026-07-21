@@ -6,5 +6,8 @@ class RideDestinationModel extends RideDestinationEntity {
     required super.name,
     required super.address,
     required super.distance,
+    super.latitude,
+    super.longitude,
+    super.placeId,
   });
 }

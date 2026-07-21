@@ -24,27 +24,23 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   late final TextEditingController _emailController;
   bool _isSubmitting = false;
   String? _errorMessage;
-  String? _successMessage;
 
   @override
   void initState() {
     super.initState();
     _emailController = TextEditingController();
-    _emailController.addListener(_clearMessages);
+    _emailController.addListener(_clearError);
   }
 
-  void _clearMessages() {
-    if (_errorMessage != null || _successMessage != null) {
-      setState(() {
-        _errorMessage = null;
-        _successMessage = null;
-      });
+  void _clearError() {
+    if (_errorMessage != null) {
+      setState(() => _errorMessage = null);
     }
   }
 
   @override
   void dispose() {
-    _emailController.removeListener(_clearMessages);
+    _emailController.removeListener(_clearError);
     _emailController.dispose();
     super.dispose();
   }
@@ -76,31 +72,27 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     setState(() {
       _isSubmitting = true;
       _errorMessage = null;
-      _successMessage = null;
     });
 
     try {
-      final message = await ref
-          .read(requestPasswordResetUsecaseProvider)
-          .call(email: email);
+      await ref.read(requestPasswordResetUsecaseProvider).call(email: email);
       if (!mounted) return;
-      setState(() {
-        _successMessage = message;
-      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Check your email for reset password.')),
+      );
+      context.go(RouteNames.auth);
     } on AuthException catch (e) {
       if (!mounted) return;
       setState(() {
         _errorMessage = e.message;
+        _isSubmitting = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
         _errorMessage = 'Something went wrong. Please try again.';
+        _isSubmitting = false;
       });
-    } finally {
-      if (mounted) {
-        setState(() => _isSubmitting = false);
-      }
     }
   }
 
@@ -166,16 +158,6 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
                         if (_canContinue) _onContinue();
                       },
                     ),
-                    if (_successMessage != null) ...[
-                      const SizedBox(height: 12),
-                      Text(
-                        _successMessage!,
-                        style: const TextStyle(
-                          color: Color(0xFF4ADE80),
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
                     if (_errorMessage != null) ...[
                       const SizedBox(height: 12),
                       Text(

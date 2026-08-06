@@ -83,6 +83,11 @@ abstract interface class PassengerRideRemoteDatasource {
     String? reason,
     String? idempotencyKey,
   });
+
+  Future<RecordingConsentResult> submitRecordingConsent({
+    required String bookingId,
+    required bool consent,
+  });
 }
 
 class PassengerRideRemoteDatasourceImpl
@@ -493,6 +498,28 @@ class PassengerRideRemoteDatasourceImpl
       _throwIfFailed(response.data);
       final data = ApiResponseParser.unwrapData(response.data);
       return RidePlanningParsers.booking(data['booking'] ?? data);
+    } on DioException catch (e) {
+      throw PassengerApiErrorMapper.fromDio(e);
+    }
+  }
+
+  @override
+  Future<RecordingConsentResult> submitRecordingConsent({
+    required String bookingId,
+    required bool consent,
+  }) async {
+    try {
+      final response = await _apiClient.dio.post<dynamic>(
+        PassengerApiPaths.recordingConsent(bookingId),
+        data: {'consent': consent},
+      );
+      _throwIfFailed(response.data);
+      final data = ApiResponseParser.unwrapData(response.data);
+      return RidePlanningParsers.recordingConsentResult(
+            data,
+            requestedConsent: consent,
+          ) ??
+          RecordingConsentResult(consent: consent);
     } on DioException catch (e) {
       throw PassengerApiErrorMapper.fromDio(e);
     }

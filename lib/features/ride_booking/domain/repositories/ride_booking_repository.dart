@@ -103,4 +103,9 @@ abstract interface class RideBookingRepository {
     String? reason,
     String? idempotencyKey,
   });
+
+  Future<RecordingConsentResult> submitRecordingConsent({
+    required String bookingId,
+    required bool consent,
+  });
 }

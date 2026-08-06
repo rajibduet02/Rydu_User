@@ -16,12 +16,14 @@ import '../../../../core/network/passenger_socket_service.dart';
 import '../../domain/constants/ride_booking_type_ids.dart';
 import '../../domain/entities/pickup_spot_entity.dart';
 import '../../domain/entities/ride_planning_entities.dart';
+import '../../domain/recording_consent_status.dart';
 import '../models/ride_flow_extra.dart';
 import '../models/ride_vehicle_option.dart';
 import '../models/suggested_location.dart';
 import 'ride_booking_dependencies.dart';
 
 export '../../domain/constants/ride_booking_type_ids.dart';
+export '../../domain/recording_consent_status.dart';
 
 enum RidePlanningPhase {
   initial,
@@ -119,6 +121,10 @@ class RideBookingState {
     this.rawPickupCoordinates,
     this.lastNavigatedPhaseKey,
     this.searchStartedAt,
+    this.recordingConsentStatus = RecordingConsentStatus.unknown,
+    this.recordingConsentInfo,
+    this.recordingConsentError,
+    this.lastRecordingConsentChoice,
   });
 
   final String selectedRideType;
@@ -172,6 +178,10 @@ class RideBookingState {
   final AppPosition? rawPickupCoordinates;
   final String? lastNavigatedPhaseKey;
   final DateTime? searchStartedAt;
+  final RecordingConsentStatus recordingConsentStatus;
+  final RecordingConsentInfo? recordingConsentInfo;
+  final String? recordingConsentError;
+  final bool? lastRecordingConsentChoice;
 
   bool get hasSelectedVehicle =>
       selectedVehicleId != null && selectedVehicle != null;
@@ -286,6 +296,22 @@ class RideBookingState {
       !isCancelling &&
       (isSearchingForDriver || phase == RidePlanningPhase.driverAccepted);
 
+  /// Consent prompt only after acceptance, while still required.
+  bool get shouldShowRecordingConsentPrompt =>
+      hasActiveBooking &&
+      isAssignedRidePhase &&
+      (recordingConsentStatus == RecordingConsentStatus.required ||
+          recordingConsentStatus == RecordingConsentStatus.submitting ||
+          recordingConsentStatus == RecordingConsentStatus.failed);
+
+  String? get recordingConsentStatusLabel {
+    return switch (recordingConsentStatus) {
+      RecordingConsentStatus.granted => 'Ride safety recording allowed',
+      RecordingConsentStatus.denied => 'Recording not allowed',
+      _ => null,
+    };
+  }
+
   String get pickupSpotLabel {
     if (pickupSpots.isEmpty) {
       return pickupPlace?.label ?? pickupLocation;
@@ -362,6 +388,13 @@ class RideBookingState {
     String? lastNavigatedPhaseKey,
     DateTime? searchStartedAt,
     bool clearSearchStartedAt = false,
+    RecordingConsentStatus? recordingConsentStatus,
+    RecordingConsentInfo? recordingConsentInfo,
+    bool clearRecordingConsentInfo = false,
+    String? recordingConsentError,
+    bool clearRecordingConsentError = false,
+    bool? lastRecordingConsentChoice,
+    bool clearLastRecordingConsentChoice = false,
   }) {
     return RideBookingState(
       selectedRideType: selectedRideType ?? this.selectedRideType,
@@ -445,6 +478,17 @@ class RideBookingState {
       searchStartedAt: clearSearchStartedAt
           ? null
           : (searchStartedAt ?? this.searchStartedAt),
+      recordingConsentStatus:
+          recordingConsentStatus ?? this.recordingConsentStatus,
+      recordingConsentInfo: clearRecordingConsentInfo
+          ? null
+          : (recordingConsentInfo ?? this.recordingConsentInfo),
+      recordingConsentError: clearRecordingConsentError
+          ? null
+          : (recordingConsentError ?? this.recordingConsentError),
+      lastRecordingConsentChoice: clearLastRecordingConsentChoice
+          ? null
+          : (lastRecordingConsentChoice ?? this.lastRecordingConsentChoice),
     );
   }
 }
@@ -477,6 +521,7 @@ class RideBookingController extends Notifier<RideBookingState> {
   String? _placesSessionToken;
   StreamSubscription<Map<String, dynamic>>? _bookingSub;
   StreamSubscription<DriverLocationEntity>? _driverSub;
+  StreamSubscription<Map<String, dynamic>>? _recordingSub;
   StreamSubscription<PassengerSocketConnectionStatus>? _socketStatusSub;
   bool _locationBootstrapStarted = false;
   DateTime? _lastDriverLocationAt;
@@ -485,6 +530,8 @@ class RideBookingController extends Notifier<RideBookingState> {
   int _routeQuoteActionId = 0;
   bool _navigatingToSelection = false;
   bool suppressPickupTextInvalidation = false;
+  ActiveRideSocketStatus? _previousSocketStatus;
+  bool _refreshingRecordingConsent = false;
 
   @override
   RideBookingState build() {
@@ -505,9 +552,11 @@ class RideBookingController extends Notifier<RideBookingState> {
   Future<void> _cancelSocketSubscriptions() async {
     await _bookingSub?.cancel();
     await _driverSub?.cancel();
+    await _recordingSub?.cancel();
     await _socketStatusSub?.cancel();
     _bookingSub = null;
     _driverSub = null;
+    _recordingSub = null;
     _socketStatusSub = null;
   }
 
@@ -1868,6 +1917,10 @@ class RideBookingController extends Notifier<RideBookingState> {
       lastNavigatedPhaseKey: '',
       clearSearchStartedAt: true,
       clearError: true,
+      recordingConsentStatus: RecordingConsentStatus.unknown,
+      clearRecordingConsentInfo: true,
+      clearRecordingConsentError: true,
+      clearLastRecordingConsentChoice: true,
     );
   }
 
@@ -1912,7 +1965,17 @@ class RideBookingController extends Notifier<RideBookingState> {
         PassengerSocketConnectionStatus.disconnected =>
           ActiveRideSocketStatus.disconnected,
       };
+      final previous = _previousSocketStatus ?? state.socketStatus;
       state = state.copyWith(socketStatus: mapped);
+      _previousSocketStatus = mapped;
+      final reconnected =
+          mapped == ActiveRideSocketStatus.connected &&
+          (previous == ActiveRideSocketStatus.reconnecting ||
+              previous == ActiveRideSocketStatus.disconnected ||
+              previous == ActiveRideSocketStatus.connecting);
+      if (reconnected && state.hasActiveBooking) {
+        unawaited(refreshRecordingConsentFromBackend());
+      }
     });
 
     _bookingSub = socket.bookingStatusStream.listen((event) {
@@ -1920,6 +1983,9 @@ class RideBookingController extends Notifier<RideBookingState> {
     });
     _driverSub = socket.driverLocationStream.listen((location) {
       _applyDriverLocation(location, bookingId);
+    });
+    _recordingSub = socket.recordingEventStream.listen((event) {
+      _applyRecordingSocketEvent(event, bookingId);
     });
   }
 
@@ -1944,6 +2010,9 @@ class RideBookingController extends Notifier<RideBookingState> {
     final driver = RidePlanningParsers.assignedDriver(
       event['driver'] ?? event['assignedDriver'],
     );
+    final consentInfo =
+        RidePlanningParsers.recordingConsent(event) ??
+        state.recordingConsentInfo;
 
     state = state.copyWith(
       bookingId: bookingId,
@@ -1957,10 +2026,204 @@ class RideBookingController extends Notifier<RideBookingState> {
               phase == RidePlanningPhase.bookingOffered
           ? (state.searchStartedAt ?? DateTime.now())
           : state.searchStartedAt,
+      recordingConsentInfo: consentInfo,
+    );
+    _syncRecordingConsentFromInfo(
+      consentInfo,
+      phase: phase,
+      preserveFailed: true,
     );
 
     if (state.isTerminalRidePhase) {
       unawaited(_stopLiveUpdates());
+    }
+  }
+
+  void _applyRecordingSocketEvent(
+    Map<String, dynamic> event,
+    String bookingId,
+  ) {
+    final eventBookingId =
+        event['bookingId']?.toString() ?? event['booking_id']?.toString();
+    if (eventBookingId != null &&
+        eventBookingId.isNotEmpty &&
+        eventBookingId != bookingId) {
+      return;
+    }
+    if (state.bookingId != null && state.bookingId != bookingId) return;
+
+    final eventName = (event['event'] ?? '').toString();
+    if (eventName == 'recording:session_available') {
+      unawaited(refreshRecordingConsentFromBackend());
+      return;
+    }
+
+    if (eventName == 'recording:consent_updated') {
+      final info = RidePlanningParsers.recordingConsent(event);
+      if (info != null) {
+        state = state.copyWith(
+          recordingConsentInfo: info,
+          clearRecordingConsentError: true,
+        );
+        _syncRecordingConsentFromInfo(info, phase: state.phase);
+      } else {
+        unawaited(refreshRecordingConsentFromBackend());
+      }
+    }
+  }
+
+  void _syncRecordingConsentFromInfo(
+    RecordingConsentInfo? info, {
+    required RidePlanningPhase phase,
+    bool preserveFailed = false,
+  }) {
+    final isAssigned =
+        phase == RidePlanningPhase.driverAccepted ||
+        phase == RidePlanningPhase.driverEnRoute ||
+        phase == RidePlanningPhase.driverArrived ||
+        phase == RidePlanningPhase.rideInProgress;
+
+    final next = resolveRecordingConsentStatus(
+      isAssignedRidePhase: isAssigned,
+      info: info,
+      preserveTransient: state.recordingConsentStatus ==
+              RecordingConsentStatus.submitting
+          ? RecordingConsentStatus.submitting
+          : (preserveFailed &&
+                    state.recordingConsentStatus ==
+                        RecordingConsentStatus.failed
+                ? RecordingConsentStatus.failed
+                : null),
+    );
+
+    // Never overwrite an in-flight submit with a stale required signal.
+    if (state.recordingConsentStatus == RecordingConsentStatus.submitting &&
+        next == RecordingConsentStatus.required) {
+      return;
+    }
+
+    state = state.copyWith(
+      recordingConsentStatus: next,
+      recordingConsentInfo: info ?? state.recordingConsentInfo,
+      clearRecordingConsentError:
+          next == RecordingConsentStatus.granted ||
+          next == RecordingConsentStatus.denied ||
+          next == RecordingConsentStatus.notRequired,
+    );
+  }
+
+  /// Submits passenger recording consent. Never auto-grants.
+  Future<bool> submitRecordingConsent(bool consent) async {
+    final bookingId = state.bookingId;
+    if (bookingId == null || bookingId.isEmpty) return false;
+    if (!state.isAssignedRidePhase) return false;
+    if (state.recordingConsentStatus == RecordingConsentStatus.submitting) {
+      return false;
+    }
+    if (state.recordingConsentStatus == RecordingConsentStatus.granted ||
+        state.recordingConsentStatus == RecordingConsentStatus.denied) {
+      return true;
+    }
+
+    state = state.copyWith(
+      recordingConsentStatus: RecordingConsentStatus.submitting,
+      lastRecordingConsentChoice: consent,
+      clearRecordingConsentError: true,
+    );
+
+    try {
+      final result = await ref
+          .read(rideBookingRepositoryProvider)
+          .submitRecordingConsent(bookingId: bookingId, consent: consent);
+
+      if (result.booking != null) {
+        await _applyBookingEntity(result.booking!, preserveRoute: true);
+      }
+
+      final info = result.asInfo;
+      final confirmed = resolveRecordingConsentStatus(
+        isAssignedRidePhase: true,
+        info: RecordingConsentInfo(
+          consentStatus:
+              info.consentStatus ?? (consent ? 'granted' : 'denied'),
+          recordingConsentedAt: info.recordingConsentedAt,
+          consented: info.consented ?? consent,
+          required: info.required,
+        ),
+      );
+
+      state = state.copyWith(
+        recordingConsentStatus: confirmed,
+        recordingConsentInfo: RecordingConsentInfo(
+          consentStatus:
+              info.consentStatus ?? (consent ? 'granted' : 'denied'),
+          recordingConsentedAt: info.recordingConsentedAt,
+          consented: info.consented ?? consent,
+          required: info.required,
+        ),
+        clearRecordingConsentError: true,
+      );
+      return confirmed == RecordingConsentStatus.granted ||
+          confirmed == RecordingConsentStatus.denied;
+    } on PassengerApiException catch (e) {
+      final alreadyRecorded =
+          e.code == 'CONSENT_ALREADY_RECORDED' ||
+          e.code == 'RECORDING_CONSENT_ALREADY_SET' ||
+          (e.message.toLowerCase().contains('already') &&
+              e.message.toLowerCase().contains('consent'));
+      if (alreadyRecorded) {
+        await refreshRecordingConsentFromBackend();
+        return state.recordingConsentStatus ==
+                RecordingConsentStatus.granted ||
+            state.recordingConsentStatus == RecordingConsentStatus.denied;
+      }
+      state = state.copyWith(
+        recordingConsentStatus: RecordingConsentStatus.failed,
+        recordingConsentError: e.message.isNotEmpty
+            ? e.message
+            : 'Could not save recording preference. Try again.',
+      );
+      return false;
+    } catch (_) {
+      state = state.copyWith(
+        recordingConsentStatus: RecordingConsentStatus.failed,
+        recordingConsentError:
+            'Could not save recording preference. Try again.',
+      );
+      return false;
+    }
+  }
+
+  Future<bool> retryRecordingConsent() async {
+    final choice = state.lastRecordingConsentChoice;
+    if (choice == null) return false;
+    return submitRecordingConsent(choice);
+  }
+
+  /// Refreshes consent from active booking / booking-by-id after restore
+  /// or socket reconnect. Does not auto-grant.
+  Future<void> refreshRecordingConsentFromBackend() async {
+    final bookingId = state.bookingId;
+    if (bookingId == null || bookingId.isEmpty) return;
+    if (!state.hasActiveBooking && !state.isAssignedRidePhase) return;
+    if (_refreshingRecordingConsent) return;
+    if (state.recordingConsentStatus == RecordingConsentStatus.submitting) {
+      return;
+    }
+
+    _refreshingRecordingConsent = true;
+    try {
+      final repo = ref.read(rideBookingRepositoryProvider);
+      BookingEntity? booking = await repo.bookingById(bookingId);
+      booking ??= await repo.activeBooking();
+      if (booking == null) return;
+      if (booking.id != bookingId && state.bookingId != booking.id) return;
+
+      await _applyBookingEntity(booking, preserveRoute: true);
+    } catch (_) {
+      // Keep last known consent; booking flow must not crash.
+    } finally {
+      _refreshingRecordingConsent = false;
     }
   }
 
@@ -2071,6 +2334,12 @@ class RideBookingController extends Notifier<RideBookingState> {
               nextPhase == RidePlanningPhase.bookingOffered
           ? (state.searchStartedAt ?? DateTime.now())
           : state.searchStartedAt,
+      recordingConsentInfo:
+          booking.recordingConsent ?? state.recordingConsentInfo,
+    );
+    _syncRecordingConsentFromInfo(
+      booking.recordingConsent ?? state.recordingConsentInfo,
+      phase: nextPhase,
     );
   }
 

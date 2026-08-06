@@ -272,6 +272,102 @@ abstract final class RidePlanningParsers {
     );
   }
 
+  static bool? asBool(dynamic value) {
+    if (value is bool) return value;
+    if (value is num) {
+      if (value == 1) return true;
+      if (value == 0) return false;
+      return null;
+    }
+    if (value is String) {
+      final t = value.trim().toLowerCase();
+      if (t == 'true' || t == '1' || t == 'yes') return true;
+      if (t == 'false' || t == '0' || t == 'no') return false;
+    }
+    return null;
+  }
+
+  /// Parses consent fields from booking, consent POST, or socket payloads.
+  /// Only reads keys known from the DriveWize driver/passenger contract.
+  static RecordingConsentInfo? recordingConsent(dynamic raw) {
+    if (raw is! Map) return null;
+    final map = Map<String, dynamic>.from(raw);
+
+    Map<String, dynamic>? nestedRecording;
+    final recording = map['recording'] ?? map['video'] ?? map['videoSession'];
+    if (recording is Map) {
+      nestedRecording = Map<String, dynamic>.from(recording);
+    }
+    final session = map['session'];
+    if (session is Map) {
+      nestedRecording ??= Map<String, dynamic>.from(session);
+    }
+
+    final consentStatus = asNonEmptyString(
+      map['consentStatus'] ??
+          map['consent_status'] ??
+          map['recordingConsentStatus'] ??
+          map['recording_consent_status'] ??
+          nestedRecording?['consentStatus'] ??
+          nestedRecording?['consent_status'] ??
+          nestedRecording?['recordingConsentStatus'] ??
+          nestedRecording?['recording_consent_status'],
+    );
+    final recordingConsentedAt = asNonEmptyString(
+      map['recordingConsentedAt'] ??
+          map['recording_consented_at'] ??
+          nestedRecording?['recordingConsentedAt'] ??
+          nestedRecording?['recording_consented_at'],
+    );
+    final consented = asBool(
+      map['consented'] ??
+          map['consent'] ??
+          nestedRecording?['consented'] ??
+          nestedRecording?['consent'],
+    );
+    final required = asBool(
+      map['recordingConsentRequired'] ??
+          map['recording_consent_required'] ??
+          map['consentRequired'] ??
+          map['consent_required'] ??
+          nestedRecording?['required'] ??
+          nestedRecording?['recordingRequired'] ??
+          nestedRecording?['recording_required'],
+    );
+
+    final info = RecordingConsentInfo(
+      consentStatus: consentStatus,
+      recordingConsentedAt: recordingConsentedAt,
+      consented: consented,
+      required: required,
+    );
+    return info.hasDecisionSignal ? info : null;
+  }
+
+  static RecordingConsentResult? recordingConsentResult(
+    dynamic raw, {
+    required bool requestedConsent,
+  }) {
+    if (raw is! Map) {
+      return RecordingConsentResult(consent: requestedConsent);
+    }
+    final map = Map<String, dynamic>.from(raw);
+    final bookingRaw = map['booking'];
+    final parsedBooking = booking(bookingRaw is Map ? bookingRaw : map);
+    final info = recordingConsent(map) ??
+        recordingConsent(bookingRaw) ??
+        parsedBooking?.recordingConsent;
+
+    return RecordingConsentResult(
+      consent: info?.consented ?? requestedConsent,
+      consentStatus: info?.consentStatus,
+      recordingConsentedAt: info?.recordingConsentedAt,
+      consented: info?.consented,
+      required: info?.required,
+      booking: parsedBooking,
+    );
+  }
+
   static BookingEntity? booking(dynamic raw) {
     if (raw is! Map) return null;
     final map = Map<String, dynamic>.from(raw);
@@ -326,6 +422,7 @@ abstract final class RidePlanningParsers {
         if (v is String) return int.tryParse(v);
         return null;
       }(),
+      recordingConsent: recordingConsent(map),
     );
   }
 

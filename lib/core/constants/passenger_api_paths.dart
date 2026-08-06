@@ -21,4 +21,6 @@ abstract final class PassengerApiPaths {
   static String bookingById(String bookingId) => '$_p/bookings/$bookingId';
   static String cancelBooking(String bookingId) =>
       '$_p/bookings/$bookingId/cancel';
+  static String recordingConsent(String bookingId) =>
+      '$_p/bookings/$bookingId/recording-consent';
 }

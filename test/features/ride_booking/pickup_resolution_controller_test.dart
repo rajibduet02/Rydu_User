@@ -194,6 +194,12 @@ class _FakeRideBookingRepository implements RideBookingRepository {
     String? reason,
     String? idempotencyKey,
   }) async => null;
+
+  @override
+  Future<RecordingConsentResult> submitRecordingConsent({
+    required String bookingId,
+    required bool consent,
+  }) async => RecordingConsentResult(consent: consent);
 }
 
 ProviderContainer _container({

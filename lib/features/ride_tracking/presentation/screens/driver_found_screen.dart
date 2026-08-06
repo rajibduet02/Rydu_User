@@ -9,6 +9,7 @@ import '../../../ride_booking/presentation/theme/ride_booking_tokens.dart';
 import '../../../ride_booking/presentation/widgets/active_ride_map.dart';
 import '../providers/driver_found_provider.dart';
 import '../widgets/driver_info_card.dart';
+import '../widgets/recording_consent_overlay.dart';
 import '../widgets/trip_details_card.dart';
 
 class DriverFoundScreen extends ConsumerStatefulWidget {
@@ -185,6 +186,12 @@ class _DriverFoundScreenState extends ConsumerState<DriverFoundScreen> {
                           ],
                         ),
                         const SizedBox(height: 20),
+                        if (ride.recordingConsentStatusLabel != null) ...[
+                          RecordingConsentStatusBanner(
+                            label: ride.recordingConsentStatusLabel!,
+                          ),
+                          const SizedBox(height: 12),
+                        ],
                         _StatusCard(
                           pickupSpotName: state.pickupSpotName.isNotEmpty
                               ? state.pickupSpotName
@@ -277,6 +284,33 @@ class _DriverFoundScreenState extends ConsumerState<DriverFoundScreen> {
                 },
                 onFindAnother: () => setState(() => _showCancelConfirm = false),
                 onNo: () => setState(() => _showCancelConfirm = false),
+              ),
+            if (ride.shouldShowRecordingConsentPrompt &&
+                !_showCancelSheet &&
+                !_showCancelConfirm)
+              RecordingConsentOverlay(
+                isSubmitting:
+                    ride.recordingConsentStatus ==
+                    RecordingConsentStatus.submitting,
+                isFailed:
+                    ride.recordingConsentStatus ==
+                    RecordingConsentStatus.failed,
+                errorMessage: ride.recordingConsentError,
+                onAllow: () {
+                  ref
+                      .read(rideBookingControllerProvider.notifier)
+                      .submitRecordingConsent(true);
+                },
+                onDecline: () {
+                  ref
+                      .read(rideBookingControllerProvider.notifier)
+                      .submitRecordingConsent(false);
+                },
+                onRetry: () {
+                  ref
+                      .read(rideBookingControllerProvider.notifier)
+                      .retryRecordingConsent();
+                },
               ),
           ],
         ),

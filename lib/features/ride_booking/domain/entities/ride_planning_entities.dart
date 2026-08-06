@@ -200,6 +200,35 @@ class AssignedDriverEntity {
   final int? etaMinutes;
 }
 
+/// Authoritative ride-video recording consent fields from booking / consent APIs.
+class RecordingConsentInfo {
+  const RecordingConsentInfo({
+    this.consentStatus,
+    this.recordingConsentedAt,
+    this.consented,
+    this.required,
+  });
+
+  /// Backend status string when present (`granted`, `denied`, `pending`, …).
+  final String? consentStatus;
+
+  /// ISO timestamp when consent was granted (driver contract field).
+  final String? recordingConsentedAt;
+
+  /// Explicit boolean when present on socket / consent responses.
+  final bool? consented;
+
+  /// Whether recording consent is required for this booking/session.
+  final bool? required;
+
+  bool get hasDecisionSignal =>
+      (consentStatus != null && consentStatus!.trim().isNotEmpty) ||
+      (recordingConsentedAt != null &&
+          recordingConsentedAt!.trim().isNotEmpty) ||
+      consented != null ||
+      required != null;
+}
+
 class BookingEntity {
   const BookingEntity({
     required this.id,
@@ -219,6 +248,7 @@ class BookingEntity {
     this.driver,
     this.encodedPolyline,
     this.driverEtaMinutes,
+    this.recordingConsent,
   });
 
   final String id;
@@ -238,6 +268,7 @@ class BookingEntity {
   final AssignedDriverEntity? driver;
   final String? encodedPolyline;
   final int? driverEtaMinutes;
+  final RecordingConsentInfo? recordingConsent;
 
   bool get isActive {
     final s = status.toLowerCase();
@@ -253,6 +284,32 @@ class BookingEntity {
     final c = currency ?? 'BDT';
     return '$c ${finalFare!.toStringAsFixed(2)}';
   }
+}
+
+/// Result of POST …/recording-consent (fields taken only when present).
+class RecordingConsentResult {
+  const RecordingConsentResult({
+    required this.consent,
+    this.consentStatus,
+    this.recordingConsentedAt,
+    this.consented,
+    this.required,
+    this.booking,
+  });
+
+  final bool consent;
+  final String? consentStatus;
+  final String? recordingConsentedAt;
+  final bool? consented;
+  final bool? required;
+  final BookingEntity? booking;
+
+  RecordingConsentInfo get asInfo => RecordingConsentInfo(
+    consentStatus: consentStatus,
+    recordingConsentedAt: recordingConsentedAt,
+    consented: consented ?? consent,
+    required: required,
+  );
 }
 
 class NearbyDriverEntity {

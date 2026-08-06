@@ -201,4 +201,13 @@ class RideBookingRepositoryImpl implements RideBookingRepository {
     reason: reason,
     idempotencyKey: idempotencyKey,
   );
+
+  @override
+  Future<RecordingConsentResult> submitRecordingConsent({
+    required String bookingId,
+    required bool consent,
+  }) => _passenger.submitRecordingConsent(
+    bookingId: bookingId,
+    consent: consent,
+  );
 }

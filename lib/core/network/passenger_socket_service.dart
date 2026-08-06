@@ -33,6 +33,8 @@ class PassengerSocketService {
       StreamController<Map<String, dynamic>>.broadcast();
   final _driverLocationController =
       StreamController<DriverLocationEntity>.broadcast();
+  final _recordingEventController =
+      StreamController<Map<String, dynamic>>.broadcast();
   final _authenticatedController = StreamController<bool>.broadcast();
   final _connectionStatusController =
       StreamController<PassengerSocketConnectionStatus>.broadcast();
@@ -41,6 +43,8 @@ class PassengerSocketService {
       _bookingStatusController.stream;
   Stream<DriverLocationEntity> get driverLocationStream =>
       _driverLocationController.stream;
+  Stream<Map<String, dynamic>> get recordingEventStream =>
+      _recordingEventController.stream;
   Stream<bool> get authenticatedStream => _authenticatedController.stream;
   Stream<PassengerSocketConnectionStatus> get connectionStatusStream =>
       _connectionStatusController.stream;
@@ -106,6 +110,14 @@ class PassengerSocketService {
       socket.on('booking:accepted', (data) => _emitBooking('accepted', data));
       socket.on('booking:status', (data) => _emitBooking('status', data));
       socket.on('booking:expired', (data) => _emitBooking('expired', data));
+      socket.on(
+        'recording:consent_updated',
+        (data) => _emitRecording('recording:consent_updated', data),
+      );
+      socket.on(
+        'recording:session_available',
+        (data) => _emitRecording('recording:session_available', data),
+      );
       socket.on('driver:location', (data) {
         final location = RidePlanningParsers.driverLocation(data);
         if (location == null) return;
@@ -154,6 +166,26 @@ class PassengerSocketService {
     _bookingStatusController.add(map);
   }
 
+  void _emitRecording(String event, dynamic data) {
+    final map = <String, dynamic>{'event': event};
+    if (data is Map) {
+      map.addAll(Map<String, dynamic>.from(data));
+    } else if (data != null) {
+      map['payload'] = data;
+    }
+    final bookingId =
+        map['bookingId']?.toString() ?? map['booking_id']?.toString();
+    if (_activeBookingId != null &&
+        bookingId != null &&
+        bookingId.isNotEmpty &&
+        bookingId != _activeBookingId) {
+      return;
+    }
+    if (!_recordingEventController.isClosed) {
+      _recordingEventController.add(map);
+    }
+  }
+
   Future<void> disconnect({bool preserveActiveBooking = false}) async {
     final socket = _socket;
     _socket = null;
@@ -173,6 +205,7 @@ class PassengerSocketService {
     await disconnect();
     await _bookingStatusController.close();
     await _driverLocationController.close();
+    await _recordingEventController.close();
     await _authenticatedController.close();
     await _connectionStatusController.close();
   }

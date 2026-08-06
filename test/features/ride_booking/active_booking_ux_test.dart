@@ -159,6 +159,17 @@ class _FakeRepo implements RideBookingRepository {
     }
     return BookingEntity(id: bookingId, status: 'cancelled');
   }
+
+  @override
+  Future<RecordingConsentResult> submitRecordingConsent({
+    required String bookingId,
+    required bool consent,
+  }) async => RecordingConsentResult(
+    consent: consent,
+    consentStatus: consent ? 'granted' : 'denied',
+    consented: consent,
+    recordingConsentedAt: consent ? '2030-01-01T00:00:00.000Z' : null,
+  );
 }
 
 BookingEntity _searchingBooking() => const BookingEntity(

@@ -1,30 +1,23 @@
-import '../../domain/entities/ride_history_item_entity.dart';
+import '../../../ride_booking/domain/entities/ride_planning_entities.dart';
+import '../../domain/entities/ride_history_page.dart';
 import '../../domain/repositories/ride_history_repository.dart';
+import '../../domain/ride_history_filter.dart';
 import '../datasources/ride_history_remote_datasource.dart';
-import '../models/ride_history_item_model.dart';
 
 class RideHistoryRepositoryImpl implements RideHistoryRepository {
   RideHistoryRepositoryImpl(this._remote);
 
   final RideHistoryRemoteDatasource _remote;
 
-  RideHistoryItemEntity _map(RideHistoryItemModel m) {
-    return RideHistoryItemEntity(
-      id: m.id,
-      summary: m.summary,
-      completedAt: m.completedAt,
-    );
+  @override
+  Future<RideHistoryPage> listRides({
+    required int page,
+    required int limit,
+    required RideHistoryFilter filter,
+  }) {
+    return _remote.fetchRides(page: page, limit: limit, filter: filter);
   }
 
   @override
-  Future<List<RideHistoryItemEntity>> listRides() async {
-    final models = await _remote.fetchRides();
-    return models.map(_map).toList();
-  }
-
-  @override
-  Future<RideHistoryItemEntity?> getRide(String id) async {
-    final model = await _remote.fetchRide(id);
-    return model == null ? null : _map(model);
-  }
+  Future<BookingEntity?> getRide(String id) => _remote.fetchRide(id);
 }

@@ -1,7 +1,13 @@
-import '../entities/ride_history_item_entity.dart';
+import '../../../ride_booking/domain/entities/ride_planning_entities.dart';
+import '../entities/ride_history_page.dart';
+import '../ride_history_filter.dart';
 
 abstract interface class RideHistoryRepository {
-  Future<List<RideHistoryItemEntity>> listRides();
+  Future<RideHistoryPage> listRides({
+    required int page,
+    required int limit,
+    required RideHistoryFilter filter,
+  });
 
-  Future<RideHistoryItemEntity?> getRide(String id);
+  Future<BookingEntity?> getRide(String id);
 }

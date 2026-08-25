@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../../core/device/passenger_device_identity.dart';
 import '../../../../shared/models/user_model.dart';
 import '../../domain/entities/user_entity.dart';
 import '../../domain/exceptions/auth_exception.dart';
@@ -9,11 +10,20 @@ import '../datasources/auth_local_datasource.dart';
 import '../datasources/auth_remote_datasource.dart';
 
 class AuthRepositoryImpl implements AuthRepository {
-  AuthRepositoryImpl(this._remote, this._local, this._auth0);
+  AuthRepositoryImpl(
+    this._remote,
+    this._local,
+    this._auth0, {
+    PassengerDeviceIdentity? deviceIdentity,
+    Future<void> Function()? unregisterPushToken,
+  }) : _deviceIdentity = deviceIdentity,
+       _unregisterPushToken = unregisterPushToken;
 
   final AuthRemoteDatasource _remote;
   final AuthLocalDatasource _local;
   final Auth0Datasource _auth0;
+  final PassengerDeviceIdentity? _deviceIdentity;
+  final Future<void> Function()? _unregisterPushToken;
 
   UserEntity _mapUser(UserModel user) {
     return UserEntity(
@@ -43,8 +53,16 @@ class AuthRepositoryImpl implements AuthRepository {
       password: password,
     );
 
+    String? deviceId;
+    try {
+      deviceId = await _deviceIdentity?.getOrCreate();
+    } catch (_) {
+      deviceId = null;
+    }
+
     final session = await _remote.exchangeAuth0Token(
       auth0Token: auth0Token,
+      deviceId: deviceId,
       deviceInfo: buildDeviceInfo(),
     );
     await _local.saveSession(session);
@@ -96,6 +114,7 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<void> signOut() async {
+    await _unregisterPushBestEffort();
     try {
       await _remote.logoutPassenger();
     } on AuthException catch (e) {
@@ -106,6 +125,18 @@ class AuthRepositoryImpl implements AuthRepository {
       rethrow;
     }
     await _clearLocalAuth();
+  }
+
+  Future<void> _unregisterPushBestEffort() async {
+    final unregister = _unregisterPushToken;
+    if (unregister == null) return;
+    try {
+      await unregister();
+    } catch (error) {
+      if (kDebugMode) {
+        debugPrint('PassengerPush: unregister failed, continuing logout');
+      }
+    }
   }
 
   Future<void> _clearLocalAuth() async {
@@ -149,4 +180,8 @@ class AuthRepositoryImpl implements AuthRepository {
     newPassword: newPassword,
     confirmPassword: confirmPassword,
   );
+
+  @override
+  Future<void> updateStoredDisplayName(String name) =>
+      _local.updateStoredDisplayName(name);
 }

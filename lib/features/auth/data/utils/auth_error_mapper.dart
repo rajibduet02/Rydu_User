@@ -9,8 +9,9 @@ abstract final class AuthErrorMapper {
   static AuthException fromDio(DioException error) {
     final response = error.response;
     final statusCode = response?.statusCode;
-    final message =
-        _extractMessage(response?.data) ??
+    final extracted = _extract(response?.data);
+    var message =
+        extracted?.message ??
         switch (error.type) {
           DioExceptionType.connectionTimeout ||
           DioExceptionType.receiveTimeout ||
@@ -20,6 +21,17 @@ abstract final class AuthErrorMapper {
             'Network error. Check your connection and try again.',
           _ => 'Something went wrong. Please try again.',
         };
+    final code = extracted?.code;
+
+    if (code == 'ACCOUNT_DEACTIVATED' ||
+        (statusCode == 403 &&
+            message.toLowerCase().contains('deactivat'))) {
+      return AuthException(
+        'This account has been deactivated. Contact support if you need it reactivated.',
+        statusCode: statusCode,
+        code: 'ACCOUNT_DEACTIVATED',
+      );
+    }
 
     if (statusCode == 401) {
       return AuthException(
@@ -27,6 +39,7 @@ abstract final class AuthErrorMapper {
             ? 'Invalid email or password.'
             : message,
         statusCode: statusCode,
+        code: code,
       );
     }
     if (statusCode == 409) {
@@ -35,9 +48,10 @@ abstract final class AuthErrorMapper {
             ? message
             : 'An account with this email already exists.',
         statusCode: statusCode,
+        code: code,
       );
     }
-    return AuthException(message, statusCode: statusCode);
+    return AuthException(message, statusCode: statusCode, code: code);
   }
 
   static AuthException fromAuth0(Object error) {
@@ -73,45 +87,55 @@ abstract final class AuthErrorMapper {
     return AuthException(_humanize(error.toString()));
   }
 
-  static String? _extractMessage(dynamic data) {
+  static ({String? code, String? message})? _extract(dynamic data) {
     if (data is String && data.trim().isNotEmpty) {
-      return _humanize(data.trim());
+      return (code: null, message: _humanize(data.trim()));
     }
     if (data is! Map) return null;
 
     final map = Map<String, dynamic>.from(data);
+    String? code;
+    String? message;
 
     final errorField = map['error'];
     if (errorField is Map) {
       final nested = Map<String, dynamic>.from(errorField);
-      final code = nested['code']?.toString();
+      code = nested['code']?.toString();
       final nestedMessage = nested['message'];
       if (nestedMessage is String && nestedMessage.trim().isNotEmpty) {
-        return _humanize(nestedMessage.trim(), code: code);
+        message = _humanize(nestedMessage.trim(), code: code);
       }
     } else if (errorField is String && errorField.trim().isNotEmpty) {
-      return _humanize(errorField.trim());
+      message = _humanize(errorField.trim());
     }
 
-    for (final key in ['message', 'detail', 'title']) {
-      final value = map[key];
-      if (value is String && value.trim().isNotEmpty) {
-        return _humanize(value.trim());
-      }
-    }
-
-    final errors = map['errors'];
-    if (errors is List && errors.isNotEmpty) {
-      final first = errors.first;
-      if (first is String) return _humanize(first);
-      if (first is Map) {
-        final nested = first['message'] ?? first['error'];
-        if (nested is String && nested.trim().isNotEmpty) {
-          return _humanize(nested.trim());
+    if (message == null) {
+      for (final key in ['message', 'detail', 'title']) {
+        final value = map[key];
+        if (value is String && value.trim().isNotEmpty) {
+          message = _humanize(value.trim(), code: code);
+          break;
         }
       }
     }
-    return null;
+
+    if (message == null) {
+      final errors = map['errors'];
+      if (errors is List && errors.isNotEmpty) {
+        final first = errors.first;
+        if (first is String) {
+          message = _humanize(first);
+        } else if (first is Map) {
+          final nested = first['message'] ?? first['error'];
+          if (nested is String && nested.trim().isNotEmpty) {
+            message = _humanize(nested.trim(), code: code);
+          }
+        }
+      }
+    }
+
+    if (message == null && code == null) return null;
+    return (code: code, message: message);
   }
 
   static String _humanize(String message, {String? code}) {

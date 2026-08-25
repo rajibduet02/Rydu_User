@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/router/shell_scroll_padding.dart';
+import '../../../push/presentation/passenger_push_controller.dart';
 import '../../../ride_booking/presentation/providers/ride_booking_provider.dart';
 import '../providers/home_controller.dart';
 import '../theme/home_screen_tokens.dart';
@@ -30,6 +31,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       if (!mounted) return;
       ref.read(homeControllerProvider.notifier).resetBottomNav();
       unawaited(_restoreActiveBookingQuietly());
+      unawaited(
+        ref
+            .read(passengerPushControllerProvider.notifier)
+            .onAuthenticatedSurfaceReady(),
+      );
     });
   }
 

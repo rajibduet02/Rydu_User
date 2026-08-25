@@ -5,60 +5,29 @@ import '../../../../app/router/route_names.dart';
 import '../../../auth/domain/exceptions/auth_exception.dart';
 import '../../../auth/presentation/providers/auth_dependencies.dart';
 import '../../../auth/presentation/providers/auth_session_provider.dart';
-import '../../../ride_booking/presentation/providers/ride_booking_dependencies.dart';
-import 'account_dependencies.dart';
-import 'profile_details_provider.dart';
+import '../../../ride_booking/presentation/providers/ride_booking_provider.dart';
+import '../../../ride_history/presentation/providers/ride_history_provider.dart';
+import '../../domain/passenger_profile_error_codes.dart';
+import 'passenger_profile_controller.dart';
 
 class AccountState {
   const AccountState({
-    this.userName = 'Mir Efaj',
-    this.membershipName = 'RYD U One',
-    this.rating = '5.0',
-    this.rideCount = 127,
-    this.walletBalance = 'BDT 250.00',
-    this.hasUnreadInbox = true,
-    this.savedPlacesCount = 4,
-    this.appVersion = 'v4.629.10001',
     this.isLoading = false,
     this.errorMessage,
     this.selectedBottomNavIndex = 3,
   });
 
-  final String userName;
-  final String membershipName;
-  final String rating;
-  final int rideCount;
-  final String walletBalance;
-  final bool hasUnreadInbox;
-  final int savedPlacesCount;
-  final String appVersion;
   final bool isLoading;
   final String? errorMessage;
   final int selectedBottomNavIndex;
 
   AccountState copyWith({
-    String? userName,
-    String? membershipName,
-    String? rating,
-    int? rideCount,
-    String? walletBalance,
-    bool? hasUnreadInbox,
-    int? savedPlacesCount,
-    String? appVersion,
     bool? isLoading,
     String? errorMessage,
     bool clearError = false,
     int? selectedBottomNavIndex,
   }) {
     return AccountState(
-      userName: userName ?? this.userName,
-      membershipName: membershipName ?? this.membershipName,
-      rating: rating ?? this.rating,
-      rideCount: rideCount ?? this.rideCount,
-      walletBalance: walletBalance ?? this.walletBalance,
-      hasUnreadInbox: hasUnreadInbox ?? this.hasUnreadInbox,
-      savedPlacesCount: savedPlacesCount ?? this.savedPlacesCount,
-      appVersion: appVersion ?? this.appVersion,
       isLoading: isLoading ?? this.isLoading,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
       selectedBottomNavIndex:
@@ -73,35 +42,8 @@ class AccountController extends Notifier<AccountState> {
   @override
   AccountState build() => const AccountState();
 
-  void resetForAccountTab() {
-    state = const AccountState();
-  }
-
   void clearError() {
     state = state.copyWith(clearError: true);
-  }
-
-  Future<void> loadAccountData() async {
-    state = state.copyWith(isLoading: true, clearError: true);
-    try {
-      final profile = await ref.read(getAccountProfileUsecaseProvider).call();
-      state = state.copyWith(
-        userName: profile.userName,
-        membershipName: profile.membershipName,
-        rating: profile.rating,
-        rideCount: profile.rideCount,
-        walletBalance: profile.walletBalance,
-        hasUnreadInbox: profile.hasUnreadInbox,
-        savedPlacesCount: profile.savedPlacesCount,
-        appVersion: profile.appVersion,
-        isLoading: false,
-      );
-    } catch (_) {
-      state = state.copyWith(
-        errorMessage: 'Could not refresh account.',
-        isLoading: false,
-      );
-    }
   }
 
   Future<void> logout() async {
@@ -112,7 +54,8 @@ class AccountController extends Notifier<AccountState> {
       await ref.read(logoutUsecaseProvider).call();
       await ref.read(passengerSocketServiceProvider).disconnect();
       ref.read(authSessionProvider.notifier).markUnauthenticated();
-      ref.read(profileDetailsControllerProvider.notifier).resetForLogout();
+      ref.read(passengerProfileControllerProvider.notifier).clear();
+      ref.invalidate(rideHistoryControllerProvider);
       state = const AccountState();
     } on AuthException catch (e) {
       state = state.copyWith(isLoading: false, errorMessage: e.message);
@@ -126,11 +69,35 @@ class AccountController extends Notifier<AccountState> {
     }
   }
 
+  Future<bool> deactivateAccount() async {
+    if (ref.read(rideBookingControllerProvider).hasActiveBooking) {
+      state = state.copyWith(
+        errorMessage: PassengerProfileErrorCodes.activeRideBlocksDeactivate,
+      );
+      return false;
+    }
+    final ok = await ref
+        .read(passengerProfileControllerProvider.notifier)
+        .deactivate(confirm: true);
+    if (!ok) {
+      final profileError = ref.read(passengerProfileControllerProvider);
+      state = state.copyWith(
+        errorMessage:
+            profileError.errorMessage ??
+            'Could not deactivate your account. Please try again.',
+      );
+      return false;
+    }
+    await logout();
+    return state.errorMessage == null;
+  }
+
   void _push(String location) {
     ref.read(goRouterProvider).push(location);
   }
 
-  void openEditProfile() => _push(RouteNames.profileDetails);
+  void openEditProfile() => _push(RouteNames.editProfile);
+  void openProfileDetails() => _push(RouteNames.profileDetails);
   void openWallet() => _push(RouteNames.wallet);
   void openHelp() => _push(RouteNames.helpCenter);
   void openSafety() => _push(RouteNames.safetyCenter);

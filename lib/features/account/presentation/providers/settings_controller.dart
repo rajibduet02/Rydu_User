@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/router/app_router.dart';
 import '../../../../app/router/route_names.dart';
 import '../../../../app/theme/app_theme_mode_provider.dart';
+import '../../../push/presentation/passenger_push_controller.dart';
 import 'account_dependencies.dart';
 
 class SettingsState {
@@ -55,10 +56,14 @@ class SettingsController extends Notifier<SettingsState> {
       }
       final isDark = ref.read(appThemeModeProvider).isDarkMode;
       final settings = await ref.read(getAccountSettingsUsecaseProvider).call();
+      await ref
+          .read(passengerPushControllerProvider.notifier)
+          .refreshDisplayedPermission();
+      final push = ref.read(passengerPushControllerProvider);
       state = state.copyWith(
         isLoading: false,
         darkModeEnabled: isDark,
-        notificationsEnabled: settings.notificationsEnabled,
+        notificationsEnabled: push.notificationsEnabled,
         selectedLanguage: settings.selectedLanguage,
         appVersion: settings.appVersion,
       );
@@ -74,8 +79,15 @@ class SettingsController extends Notifier<SettingsState> {
     state = state.copyWith(clearError: true);
   }
 
-  void toggleNotifications(bool value) {
-    state = state.copyWith(notificationsEnabled: value, clearError: true);
+  Future<void> toggleNotifications(bool value) async {
+    await ref
+        .read(passengerPushControllerProvider.notifier)
+        .setNotificationsEnabled(value);
+    final push = ref.read(passengerPushControllerProvider);
+    state = state.copyWith(
+      notificationsEnabled: push.notificationsEnabled,
+      clearError: true,
+    );
   }
 
   Future<void> toggleDarkMode(bool value) async {

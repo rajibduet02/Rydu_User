@@ -37,6 +37,8 @@ abstract interface class AuthLocalDatasource {
     required String phone,
     required String code,
   });
+
+  Future<void> updateStoredDisplayName(String name);
 }
 
 class AuthLocalDatasourceImpl implements AuthLocalDatasource {
@@ -141,6 +143,13 @@ class AuthLocalDatasourceImpl implements AuthLocalDatasource {
     required String code,
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 400));
+  }
+
+  @override
+  Future<void> updateStoredDisplayName(String name) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return;
+    await _secureStorage.write(AuthConstants.userNameKey, trimmed);
   }
 }
 

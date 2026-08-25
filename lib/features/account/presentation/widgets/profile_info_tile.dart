@@ -7,16 +7,16 @@ class ProfileInfoTile extends StatelessWidget {
     super.key,
     required this.label,
     required this.value,
-    required this.onTap,
-    this.showVerified = false,
+    this.onTap,
     this.showDivider = true,
+    this.readOnly = false,
   });
 
   final String label;
   final String value;
-  final VoidCallback onTap;
-  final bool showVerified;
+  final VoidCallback? onTap;
   final bool showDivider;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +29,7 @@ class ProfileInfoTile extends StatelessWidget {
         Material(
           color: Colors.transparent,
           child: InkWell(
-            onTap: onTap,
+            onTap: readOnly ? null : onTap,
             child: Padding(
               padding: EdgeInsets.symmetric(
                 horizontal: (w * 0.045).clamp(16.0, 18.0),
@@ -63,33 +63,17 @@ class ProfileInfoTile extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            if (showVerified) ...[
-                              SizedBox(width: (w * 0.02).clamp(8.0, 10.0)),
-                              Container(
-                                width: 18,
-                                height: 18,
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: ProfileDetailsTokens.verified,
-                                ),
-                                alignment: Alignment.center,
-                                child: const Icon(
-                                  Icons.check_rounded,
-                                  size: 12,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
                           ],
                         ),
                       ],
                     ),
                   ),
-                  Icon(
-                    Icons.chevron_right_rounded,
-                    color: ProfileDetailsTokens.muted,
-                    size: (w * 0.06).clamp(22.0, 24.0),
-                  ),
+                  if (!readOnly && onTap != null)
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: ProfileDetailsTokens.muted,
+                      size: (w * 0.06).clamp(22.0, 24.0),
+                    ),
                 ],
               ),
             ),

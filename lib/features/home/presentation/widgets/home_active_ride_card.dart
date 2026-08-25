@@ -6,7 +6,12 @@ import '../theme/home_screen_tokens.dart';
 
 /// Persistent Home banner for an in-progress / searching booking.
 class HomeActiveRideCard extends ConsumerWidget {
-  const HomeActiveRideCard({super.key});
+  const HomeActiveRideCard({
+    super.key,
+    this.showCancel = true,
+  });
+
+  final bool showCancel;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -17,6 +22,13 @@ class HomeActiveRideCard extends ConsumerWidget {
     final pickup = state.pickupSpotLabel.isNotEmpty
         ? state.pickupSpotLabel
         : (state.pickupLocation.isNotEmpty ? state.pickupLocation : 'Pickup');
+    final driver = state.assignedDriver;
+    final driverLine = driver == null
+        ? null
+        : [
+            driver.name,
+            driver.vehicleName ?? driver.plateNumber,
+          ].whereType<String>().where((part) => part.trim().isNotEmpty).join(' · ');
 
     return Material(
       color: HomeScreenTokens.surface,
@@ -77,6 +89,30 @@ class HomeActiveRideCard extends ConsumerWidget {
                   fontSize: 13,
                 ),
               ),
+              if (driverLine != null && driverLine.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  driverLine,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: HomeScreenTokens.muted,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+              if (state.estimatedFare != null &&
+                  state.estimatedFare!.trim().isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  state.estimatedFare!,
+                  style: const TextStyle(
+                    color: HomeScreenTokens.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -91,7 +127,7 @@ class HomeActiveRideCard extends ConsumerWidget {
                       child: const Text('View ride'),
                     ),
                   ),
-                  if (state.canCancelBooking) ...[
+                  if (showCancel && state.canCancelBooking) ...[
                     const SizedBox(width: 10),
                     Expanded(
                       child: TextButton(

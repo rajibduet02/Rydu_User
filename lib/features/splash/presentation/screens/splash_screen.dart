@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/router/app_router.dart';
 import '../../../../app/router/route_names.dart';
 import '../../../auth/presentation/providers/auth_session_provider.dart';
+import '../../../push/presentation/passenger_push_controller.dart';
 import '../../../ride_booking/presentation/providers/ride_booking_provider.dart';
 import '../theme/splash_layout.dart';
 import '../theme/splash_tokens.dart';
@@ -79,7 +80,17 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     await Future<void>.delayed(const Duration(milliseconds: 800));
     if (!mounted) return;
+    unawaited(
+      ref.read(passengerPushControllerProvider.notifier).attachListeners(),
+    );
     _navigateTo(session.isAuthenticated ? RouteNames.home : RouteNames.auth);
+    if (session.isAuthenticated) {
+      unawaited(
+        ref
+            .read(passengerPushControllerProvider.notifier)
+            .onAuthenticatedSurfaceReady(),
+      );
+    }
   }
 
   void _navigateTo(String destination) {

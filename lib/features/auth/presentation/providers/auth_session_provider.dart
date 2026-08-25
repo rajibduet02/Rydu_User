@@ -42,6 +42,21 @@ class AuthSessionNotifier extends Notifier<AuthSessionState> {
   void markUnauthenticated() {
     state = const AuthSessionState.unauthenticated();
   }
+
+  void updateDisplayName(String name) {
+    final user = state.user;
+    if (user == null) return;
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return;
+    state = AuthSessionState.authenticated(
+      UserEntity(
+        id: user.id,
+        email: user.email,
+        displayName: trimmed,
+        role: user.role,
+      ),
+    );
+  }
 }
 
 final authSessionProvider =

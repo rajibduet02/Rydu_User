@@ -1,12 +1,16 @@
 import 'package:dio/dio.dart';
 
 import '../constants/api_constants.dart';
+import '../device/passenger_device_identity.dart';
 import '../storage/secure_storage_service.dart';
 import 'auth_interceptor.dart';
 import 'error_interceptor.dart';
 
 /// Creates a configured [Dio] instance for the app.
-Dio createDio(SecureStorageService secureStorage) {
+Dio createDio(
+  SecureStorageService secureStorage, {
+  PassengerDeviceIdentity? deviceIdentity,
+}) {
   final dio = Dio(
     BaseOptions(
       baseUrl: ApiConstants.baseUrl,
@@ -20,6 +24,11 @@ Dio createDio(SecureStorageService secureStorage) {
     ),
   );
   dio.interceptors.add(ErrorInterceptor());
-  dio.interceptors.add(AuthInterceptor(secureStorage));
+  dio.interceptors.add(
+    AuthInterceptor(
+      secureStorage: secureStorage,
+      deviceIdentity: deviceIdentity,
+    ),
+  );
   return dio;
 }

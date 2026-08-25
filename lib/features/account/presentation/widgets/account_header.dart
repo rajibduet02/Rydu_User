@@ -1,33 +1,31 @@
 import 'package:flutter/material.dart';
 
+import '../../domain/entities/passenger_profile.dart';
 import '../theme/account_screen_tokens.dart';
-import 'membership_badge.dart';
+import 'passenger_avatar.dart';
 
 class AccountHeader extends StatelessWidget {
   const AccountHeader({
     super.key,
-    required this.userName,
-    required this.membershipName,
-    required this.rating,
-    required this.rideCount,
+    required this.profile,
+    required this.isUploadingAvatar,
     required this.onAvatarTap,
-    required this.onMembershipTap,
-    required this.onRatingTap,
+    required this.onEditProfile,
   });
 
-  final String userName;
-  final String membershipName;
-  final String rating;
-  final int rideCount;
+  final PassengerProfile? profile;
+  final bool isUploadingAvatar;
   final VoidCallback onAvatarTap;
-  final VoidCallback onMembershipTap;
-  final VoidCallback onRatingTap;
+  final VoidCallback onEditProfile;
 
   @override
   Widget build(BuildContext context) {
     final w = MediaQuery.sizeOf(context).width;
-    final nameSize = (w * 0.095).clamp(32.0, 40.0);
+    final nameSize = (w * 0.07).clamp(24.0, 32.0);
     final avatar = (w * 0.22).clamp(72.0, 84.0);
+    final name = profile?.displayName ?? 'Account';
+    final email = profile?.email.trim() ?? '';
+    final phone = profile?.phone?.trim();
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -37,7 +35,7 @@ class AccountHeader extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                userName,
+                name,
                 style: TextStyle(
                   color: AccountScreenTokens.white,
                   fontSize: nameSize,
@@ -45,13 +43,33 @@ class AccountHeader extends StatelessWidget {
                   height: 1.05,
                 ),
               ),
-              SizedBox(height: (w * 0.02).clamp(8.0, 12.0)),
-              MembershipBadge(label: membershipName, onTap: onMembershipTap),
-              SizedBox(height: (w * 0.025).clamp(10.0, 14.0)),
+              if (email.isNotEmpty) ...[
+                SizedBox(height: (w * 0.018).clamp(6.0, 10.0)),
+                Text(
+                  email,
+                  style: TextStyle(
+                    color: AccountScreenTokens.muted,
+                    fontSize: (w * 0.038).clamp(13.0, 15.0),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+              if (phone != null && phone.isNotEmpty) ...[
+                SizedBox(height: (w * 0.01).clamp(4.0, 6.0)),
+                Text(
+                  phone,
+                  style: TextStyle(
+                    color: AccountScreenTokens.muted,
+                    fontSize: (w * 0.035).clamp(12.0, 14.0),
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+              SizedBox(height: (w * 0.03).clamp(10.0, 14.0)),
               Material(
                 color: Colors.transparent,
                 child: InkWell(
-                  onTap: onRatingTap,
+                  onTap: onEditProfile,
                   borderRadius: BorderRadius.circular(999),
                   child: Ink(
                     padding: EdgeInsets.symmetric(
@@ -67,42 +85,18 @@ class AccountHeader extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          Icons.star_rounded,
-                          color: AccountScreenTokens.gold,
+                          Icons.edit_outlined,
+                          color: AccountScreenTokens.accent,
                           size: (w * 0.045).clamp(16.0, 18.0),
                         ),
                         SizedBox(width: (w * 0.015).clamp(4.0, 6.0)),
                         Text(
-                          rating,
+                          'Edit Profile',
                           style: TextStyle(
                             color: AccountScreenTokens.white,
-                            fontSize: (w * 0.038).clamp(14.0, 15.0),
+                            fontSize: (w * 0.035).clamp(13.0, 14.0),
                             fontWeight: FontWeight.w700,
                           ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 6),
-                          child: Text(
-                            '•',
-                            style: TextStyle(
-                              color: AccountScreenTokens.muted,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                        Text(
-                          '$rideCount rides',
-                          style: TextStyle(
-                            color: AccountScreenTokens.muted,
-                            fontSize: (w * 0.035).clamp(13.0, 14.0),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        SizedBox(width: (w * 0.01).clamp(4.0, 6.0)),
-                        Icon(
-                          Icons.chevron_right_rounded,
-                          color: AccountScreenTokens.muted,
-                          size: (w * 0.055).clamp(20.0, 22.0),
                         ),
                       ],
                     ),
@@ -113,37 +107,11 @@ class AccountHeader extends StatelessWidget {
           ),
         ),
         SizedBox(width: (w * 0.03).clamp(10.0, 14.0)),
-        Material(
-          color: Colors.transparent,
-          shape: const CircleBorder(),
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: onAvatarTap,
-            child: Ink(
-              width: avatar,
-              height: avatar,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    AccountScreenTokens.accent.withValues(alpha: 0.25),
-                    AccountScreenTokens.accentSoft.withValues(alpha: 0.12),
-                  ],
-                ),
-                border: Border.all(
-                  color: AccountScreenTokens.accent.withValues(alpha: 0.45),
-                  width: 2,
-                ),
-              ),
-              child: Icon(
-                Icons.person_rounded,
-                size: avatar * 0.48,
-                color: AccountScreenTokens.accent,
-              ),
-            ),
-          ),
+        PassengerAvatar(
+          profile: profile,
+          size: avatar,
+          isUploading: isUploadingAvatar,
+          onTap: onAvatarTap,
         ),
       ],
     );

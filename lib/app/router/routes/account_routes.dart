@@ -18,6 +18,7 @@ import '../../../features/account/presentation/screens/live_chat_support_screen.
 import '../../../features/account/presentation/screens/privacy_and_data_screen.dart';
 import '../../../features/account/presentation/screens/privacy_settings_screen.dart';
 import '../../../features/account/presentation/screens/profile_details_screen.dart';
+import '../../../features/account/presentation/screens/edit_profile_screen.dart';
 import '../../../features/account/presentation/screens/report_lost_item_screen.dart';
 import '../../../features/account/presentation/screens/report_ride_issue_screen.dart';
 import '../../../features/account/presentation/screens/request_callback_screen.dart';
@@ -255,19 +256,20 @@ List<RouteBase> get accountRoutes => [
     builder: (context, state) => const ProfileDetailsScreen(),
   ),
   GoRoute(
+    path: RouteNames.editProfile,
+    builder: (context, state) => const EditProfileScreen(),
+  ),
+  GoRoute(
     path: RouteNames.editProfileName,
-    builder: (context, state) =>
-        const SupportFlowPlaceholderScreen(title: 'Edit name'),
+    redirect: (context, state) => RouteNames.editProfile,
   ),
   GoRoute(
     path: RouteNames.editPhone,
-    builder: (context, state) =>
-        const SupportFlowPlaceholderScreen(title: 'Edit phone'),
+    redirect: (context, state) => RouteNames.editProfile,
   ),
   GoRoute(
     path: RouteNames.editEmail,
-    builder: (context, state) =>
-        const SupportFlowPlaceholderScreen(title: 'Edit email'),
+    redirect: (context, state) => RouteNames.profileDetails,
   ),
   // Settings, privacy & security
   GoRoute(

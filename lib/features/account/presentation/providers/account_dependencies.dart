@@ -1,42 +1,34 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../auth/presentation/providers/auth_dependencies.dart';
-import '../../data/datasources/account_local_datasource.dart';
 import '../../data/datasources/account_settings_local_datasource.dart';
 import '../../data/datasources/family_local_datasource.dart';
 import '../../data/datasources/help_center_local_datasource.dart';
 import '../../data/datasources/inbox_local_datasource.dart';
 import '../../data/datasources/privacy_local_datasource.dart';
-import '../../data/datasources/profile_local_datasource.dart';
 import '../../data/datasources/saved_places_local_datasource.dart';
 import '../../data/datasources/security_local_datasource.dart';
 import '../../data/datasources/support_local_datasource.dart';
 import '../../data/datasources/wallet_local_datasource.dart';
-import '../../data/repositories/account_repository_impl.dart';
 import '../../data/repositories/account_settings_repository_impl.dart';
 import '../../data/repositories/family_repository_impl.dart';
 import '../../data/repositories/help_center_repository_impl.dart';
 import '../../data/repositories/inbox_repository_impl.dart';
 import '../../data/repositories/privacy_repository_impl.dart';
-import '../../data/repositories/profile_repository_impl.dart';
 import '../../data/repositories/saved_places_repository_impl.dart';
 import '../../data/repositories/security_repository_impl.dart';
 import '../../data/repositories/support_repository_impl.dart';
 import '../../data/repositories/wallet_repository_impl.dart';
-import '../../domain/repositories/account_repository.dart';
 import '../../domain/repositories/account_settings_repository.dart';
 import '../../domain/repositories/family_repository.dart';
 import '../../domain/repositories/help_center_repository.dart';
 import '../../domain/repositories/inbox_repository.dart';
 import '../../domain/repositories/privacy_repository.dart';
-import '../../domain/repositories/profile_repository.dart';
 import '../../domain/repositories/saved_places_repository.dart';
 import '../../domain/repositories/security_repository.dart';
 import '../../domain/repositories/support_repository.dart';
 import '../../domain/repositories/wallet_repository.dart';
 import '../../domain/usecases/continue_family_member_flow_usecase.dart';
 import '../../domain/usecases/enable_trip_sharing_usecase.dart';
-import '../../domain/usecases/get_account_profile_usecase.dart';
 import '../../domain/usecases/get_account_settings_usecase.dart';
 import '../../domain/usecases/get_call_support_info_usecase.dart';
 import '../../domain/usecases/get_emergency_contacts_usecase.dart';
@@ -44,7 +36,6 @@ import '../../domain/usecases/get_faqs_usecase.dart';
 import '../../domain/usecases/get_inbox_messages_usecase.dart';
 import '../../domain/usecases/get_live_chat_messages_usecase.dart';
 import '../../domain/usecases/get_lost_item_trips_usecase.dart';
-import '../../domain/usecases/get_profile_details_usecase.dart';
 import '../../domain/usecases/get_ride_issue_trips_usecase.dart';
 import '../../domain/usecases/get_safety_center_data_usecase.dart';
 import '../../domain/usecases/get_saved_places_usecase.dart';
@@ -63,10 +54,6 @@ import '../../domain/usecases/submit_lost_item_report_usecase.dart';
 import '../../domain/usecases/submit_ride_issue_usecase.dart';
 
 // --- Datasources ---
-
-final accountLocalDatasourceProvider = Provider<AccountLocalDatasource>((ref) {
-  return AccountLocalDatasourceImpl();
-});
 
 final walletLocalDatasourceProvider = Provider<WalletLocalDatasource>((ref) {
   return WalletLocalDatasourceImpl();
@@ -96,10 +83,6 @@ final familyLocalDatasourceProvider = Provider<FamilyLocalDatasource>((ref) {
   return FamilyLocalDatasourceImpl();
 });
 
-final profileLocalDatasourceProvider = Provider<ProfileLocalDatasource>((ref) {
-  return ProfileLocalDatasourceImpl();
-});
-
 final securityLocalDatasourceProvider = Provider<SecurityLocalDatasource>((
   ref,
 ) {
@@ -116,10 +99,6 @@ final accountSettingsLocalDatasourceProvider =
     });
 
 // --- Repositories ---
-
-final accountRepositoryProvider = Provider<AccountRepository>((ref) {
-  return AccountRepositoryImpl(ref.watch(accountLocalDatasourceProvider));
-});
 
 final walletRepositoryProvider = Provider<WalletRepository>((ref) {
   return WalletRepositoryImpl(ref.watch(walletLocalDatasourceProvider));
@@ -147,13 +126,6 @@ final familyRepositoryProvider = Provider<FamilyRepository>((ref) {
   return FamilyRepositoryImpl(ref.watch(familyLocalDatasourceProvider));
 });
 
-final profileRepositoryProvider = Provider<ProfileRepository>((ref) {
-  return ProfileRepositoryImpl(
-    ref.watch(profileLocalDatasourceProvider),
-    ref.watch(getMeUsecaseProvider),
-  );
-});
-
 final securityRepositoryProvider = Provider<SecurityRepository>((ref) {
   return SecurityRepositoryImpl(ref.watch(securityLocalDatasourceProvider));
 });
@@ -171,12 +143,6 @@ final accountSettingsRepositoryProvider = Provider<AccountSettingsRepository>((
 });
 
 // --- Use cases ---
-
-final getAccountProfileUsecaseProvider = Provider<GetAccountProfileUsecase>((
-  ref,
-) {
-  return GetAccountProfileUsecase(ref.watch(accountRepositoryProvider));
-});
 
 final getWalletDataUsecaseProvider = Provider<GetWalletDataUsecase>((ref) {
   return GetWalletDataUsecase(ref.watch(walletRepositoryProvider));
@@ -268,12 +234,6 @@ final getEmergencyContactsUsecaseProvider =
     Provider<GetEmergencyContactsUsecase>((ref) {
       return GetEmergencyContactsUsecase(ref.watch(securityRepositoryProvider));
     });
-
-final getProfileDetailsUsecaseProvider = Provider<GetProfileDetailsUsecase>((
-  ref,
-) {
-  return GetProfileDetailsUsecase(ref.watch(profileRepositoryProvider));
-});
 
 final getSecurityDataUsecaseProvider = Provider<GetSecurityDataUsecase>((ref) {
   return GetSecurityDataUsecase(ref.watch(securityRepositoryProvider));

@@ -34,6 +34,14 @@ abstract final class PassengerApiErrorMapper {
       );
     }
     if (status == 403) {
+      if (code == 'ACCOUNT_DEACTIVATED') {
+        return PassengerApiException(
+          'This account has been deactivated. Contact support if you need it reactivated.',
+          code: code,
+          statusCode: status,
+          details: extracted?.details,
+        );
+      }
       return PassengerApiException(
         message ?? 'You do not have permission to perform this action.',
         code: code ?? 'FORBIDDEN',

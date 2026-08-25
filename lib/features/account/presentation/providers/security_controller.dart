@@ -63,7 +63,7 @@ class SecurityController extends Notifier<SecurityState> {
   }
 
   void openChangePassword() {
-    ref.read(goRouterProvider).push(RouteNames.changePassword);
+    ref.read(goRouterProvider).push(RouteNames.forgotPassword);
   }
 
   void openAuthenticatorApp() {

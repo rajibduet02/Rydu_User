@@ -26,5 +26,44 @@ void main() {
       expect(mapped, isA<AuthException>());
       expect(mapped.message, contains('Password is too weak'));
     });
+
+    test('maps ACCOUNT_DEACTIVATED 403', () {
+      final error = DioException(
+        requestOptions: RequestOptions(path: '/login'),
+        response: Response(
+          requestOptions: RequestOptions(path: '/login'),
+          statusCode: 403,
+          data: {
+            'success': false,
+            'error': {
+              'code': 'ACCOUNT_DEACTIVATED',
+              'message': 'Account deactivated',
+            },
+          },
+        ),
+        type: DioExceptionType.badResponse,
+      );
+      final mapped = AuthErrorMapper.fromDio(error);
+      expect(mapped.code, 'ACCOUNT_DEACTIVATED');
+      expect(mapped.message, contains('deactivated'));
+    });
+
+    test('does not treat VALIDATION_ERROR as ACCOUNT_DEACTIVATED', () {
+      final error = DioException(
+        requestOptions: RequestOptions(path: '/login'),
+        response: Response(
+          requestOptions: RequestOptions(path: '/login'),
+          statusCode: 400,
+          data: {
+            'success': false,
+            'error': {'code': 'VALIDATION_ERROR', 'message': 'Invalid email'},
+          },
+        ),
+        type: DioExceptionType.badResponse,
+      );
+      final mapped = AuthErrorMapper.fromDio(error);
+      expect(mapped.code, 'VALIDATION_ERROR');
+      expect(mapped.code, isNot('ACCOUNT_DEACTIVATED'));
+    });
   });
 }

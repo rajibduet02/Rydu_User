@@ -23,4 +23,10 @@ abstract final class PassengerApiPaths {
       '$_p/bookings/$bookingId/cancel';
   static String recordingConsent(String bookingId) =>
       '$_p/bookings/$bookingId/recording-consent';
+
+  static String get profile => '$_p/profile';
+  static String get profileAvatar => '$_p/profile/avatar';
+  static String get profileDeactivate => '$_p/profile/deactivate';
+
+  static String get pushToken => '$_p/push-token';
 }

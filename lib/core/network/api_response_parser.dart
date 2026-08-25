@@ -29,6 +29,7 @@ abstract final class ApiResponseParser {
       'methods',
       'quotes',
       'drivers',
+      'bookings',
     ],
   }) {
     if (raw is List) return List<dynamic>.from(raw);

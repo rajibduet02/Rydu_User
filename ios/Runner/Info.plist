@@ -4,6 +4,8 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>RYD U needs access to your photos so you can set a profile picture.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>RYD U needs your location to set your pickup point and show nearby rides.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
@@ -70,6 +72,10 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

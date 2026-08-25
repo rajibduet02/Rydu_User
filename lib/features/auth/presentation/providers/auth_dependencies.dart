@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/providers/dio_provider.dart';
 import '../../../../app/providers/storage_providers.dart';
+import '../../../push/presentation/push_token_providers.dart';
 import '../../data/datasources/auth0_datasource.dart';
 import '../../data/datasources/auth_local_datasource.dart';
 import '../../data/datasources/auth_remote_datasource_impl.dart';
@@ -40,6 +41,9 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
     ref.watch(authRemoteDatasourceProvider),
     ref.watch(authLocalDatasourceProvider),
     ref.watch(auth0DatasourceProvider),
+    deviceIdentity: ref.watch(passengerDeviceIdentityProvider),
+    unregisterPushToken: () =>
+        ref.read(passengerPushRepositoryProvider).unregisterToken(),
   );
 });
 

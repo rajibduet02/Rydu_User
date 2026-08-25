@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "522317173328",
+    "project_id": "drivewize-e108b",
+    "storage_bucket": "drivewize-e108b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:522317173328:android:11c96a903024a899a1f755",
+        "android_client_info": {
+          "package_name": "com.drivewize.driver"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC7ob3dvMO8Z8lsF7PEcP8a4JwWgpbon74"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:522317173328:android:c0805172efc22ca3a1f755",
+        "android_client_info": {
+          "package_name": "com.rydu.user"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC7ob3dvMO8Z8lsF7PEcP8a4JwWgpbon74"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

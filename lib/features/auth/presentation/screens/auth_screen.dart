@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +8,8 @@ import '../../../../app/router/app_router.dart';
 import '../../../../app/router/route_names.dart';
 import '../../../onboarding/presentation/theme/welcome_tokens.dart';
 import '../../../onboarding/presentation/widgets/welcome_action_button.dart';
+import '../../../account/presentation/providers/passenger_profile_controller.dart';
+import '../../../push/presentation/passenger_push_controller.dart';
 import '../../../ride_booking/presentation/providers/ride_booking_provider.dart';
 import '../providers/auth_dependencies.dart';
 import '../providers/auth_session_provider.dart';
@@ -112,8 +116,21 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       } catch (_) {}
       if (!mounted) return;
       ref.read(goRouterProvider).go(RouteNames.home);
+      unawaited(
+        ref
+            .read(passengerPushControllerProvider.notifier)
+            .onAuthenticatedSurfaceReady(requestPermissionIfNeeded: true),
+      );
     } on AuthException catch (e) {
       if (!mounted) return;
+      if (e.code == 'ACCOUNT_DEACTIVATED') {
+        try {
+          await ref.read(logoutUsecaseProvider).call();
+        } catch (_) {}
+        await ref.read(passengerSocketServiceProvider).disconnect();
+        ref.read(authSessionProvider.notifier).markUnauthenticated();
+        ref.read(passengerProfileControllerProvider.notifier).clear();
+      }
       setState(() {
         _errorMessage = e.message;
       });

@@ -65,6 +65,7 @@ class AuthRemoteDatasourceImpl implements AuthRemoteDatasource {
     AuthDebugLogger.logTokenExchangeRequest(
       accessToken: auth0Token,
       deviceInfo: deviceInfo ?? '',
+      deviceId: deviceId,
     );
 
     try {

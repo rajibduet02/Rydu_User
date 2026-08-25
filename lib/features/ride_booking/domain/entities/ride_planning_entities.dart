@@ -200,6 +200,40 @@ class AssignedDriverEntity {
   final int? etaMinutes;
 }
 
+class BookingVehicleEntity {
+  const BookingVehicleEntity({
+    this.id,
+    this.make,
+    this.model,
+    this.color,
+    this.plateNumber,
+  });
+
+  final String? id;
+  final String? make;
+  final String? model;
+  final String? color;
+  final String? plateNumber;
+
+  String? get displayName {
+    final parts = <String>[
+      if (make != null && make!.trim().isNotEmpty) make!.trim(),
+      if (model != null && model!.trim().isNotEmpty) model!.trim(),
+    ];
+    if (parts.isEmpty) return null;
+    return parts.join(' ');
+  }
+
+  String? get displayLabel {
+    final name = displayName;
+    final c = color?.trim();
+    if (name != null && c != null && c.isNotEmpty) return '$name · $c';
+    if (name != null) return name;
+    if (c != null && c.isNotEmpty) return c;
+    return plateNumber;
+  }
+}
+
 /// Authoritative ride-video recording consent fields from booking / consent APIs.
 class RecordingConsentInfo {
   const RecordingConsentInfo({
@@ -235,8 +269,11 @@ class BookingEntity {
     required this.status,
     this.bookingNumber,
     this.serviceCategoryId,
+    this.serviceCode,
     this.serviceName,
     this.paymentMethodCode,
+    this.paymentMethodName,
+    this.paymentStatus,
     this.pickupAddress,
     this.dropoffAddress,
     this.pickupLatitude,
@@ -245,18 +282,35 @@ class BookingEntity {
     this.dropoffLongitude,
     this.currency,
     this.finalFare,
+    this.estimatedAmount,
+    this.discountAmount,
     this.driver,
+    this.vehicle,
     this.encodedPolyline,
+    this.distanceKm,
+    this.durationMin,
     this.driverEtaMinutes,
     this.recordingConsent,
+    this.recordingAvailable,
+    this.createdAt,
+    this.acceptedAt,
+    this.arrivedAt,
+    this.startedAt,
+    this.completedAt,
+    this.cancelledAt,
+    this.cancelledBy,
+    this.cancellationReason,
   });
 
   final String id;
   final String status;
   final String? bookingNumber;
   final String? serviceCategoryId;
+  final String? serviceCode;
   final String? serviceName;
   final String? paymentMethodCode;
+  final String? paymentMethodName;
+  final String? paymentStatus;
   final String? pickupAddress;
   final String? dropoffAddress;
   final double? pickupLatitude;
@@ -265,10 +319,24 @@ class BookingEntity {
   final double? dropoffLongitude;
   final String? currency;
   final double? finalFare;
+  final double? estimatedAmount;
+  final double? discountAmount;
   final AssignedDriverEntity? driver;
+  final BookingVehicleEntity? vehicle;
   final String? encodedPolyline;
+  final double? distanceKm;
+  final int? durationMin;
   final int? driverEtaMinutes;
   final RecordingConsentInfo? recordingConsent;
+  final bool? recordingAvailable;
+  final DateTime? createdAt;
+  final DateTime? acceptedAt;
+  final DateTime? arrivedAt;
+  final DateTime? startedAt;
+  final DateTime? completedAt;
+  final DateTime? cancelledAt;
+  final String? cancelledBy;
+  final String? cancellationReason;
 
   bool get isActive {
     final s = status.toLowerCase();

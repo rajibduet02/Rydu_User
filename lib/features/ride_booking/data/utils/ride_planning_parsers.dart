@@ -368,20 +368,73 @@ abstract final class RidePlanningParsers {
     );
   }
 
+  static DateTime? asDateTime(dynamic value) {
+    if (value is DateTime) return value;
+    final text = asNonEmptyString(value);
+    if (text == null) return null;
+    return DateTime.tryParse(text);
+  }
+
+  static Map<String, dynamic>? asMap(dynamic raw) {
+    if (raw is Map) return Map<String, dynamic>.from(raw);
+    return null;
+  }
+
+  static BookingVehicleEntity? bookingVehicle(dynamic raw) {
+    final map = asMap(raw);
+    if (map == null) return null;
+    final id = asNonEmptyString(map['id'] ?? map['vehicleId']);
+    final make = asNonEmptyString(map['make'] ?? map['brand']);
+    final model = asNonEmptyString(map['model']);
+    final color = asNonEmptyString(map['color']);
+    final plate = asNonEmptyString(
+      map['plateNumber'] ?? map['plate'] ?? map['maskedPlate'],
+    );
+    if (id == null &&
+        make == null &&
+        model == null &&
+        color == null &&
+        plate == null) {
+      return null;
+    }
+    return BookingVehicleEntity(
+      id: id,
+      make: make,
+      model: model,
+      color: color,
+      plateNumber: plate,
+    );
+  }
+
   static BookingEntity? booking(dynamic raw) {
     if (raw is! Map) return null;
     final map = Map<String, dynamic>.from(raw);
+    final nestedBooking = asMap(map['booking']);
+    if (nestedBooking != null &&
+        asNonEmptyString(map['id'] ?? map['bookingId']) == null) {
+      return booking(nestedBooking);
+    }
     final id = asNonEmptyString(map['id'] ?? map['bookingId']);
     if (id == null) return null;
     final pickup = map['pickup'];
     final dropoff = map['dropoff'];
+    final service = asMap(map['service']);
+    final fareMap = asMap(map['fare']);
+    final payment = asMap(map['payment']);
+    final route = asMap(map['route']);
+    final timestamps = asMap(map['timestamps']);
+    final recording = asMap(map['recording']);
     final fare = asDouble(
-      map['finalFare'] ?? map['fare'] ?? map['estimatedFare'] ?? map['price'],
+      fareMap?['amount'] ??
+          map['finalFare'] ??
+          map['fare'] ??
+          map['estimatedFare'] ??
+          map['price'],
     );
-    final route = map['route'];
     final encoded = asNonEmptyString(
       map['encodedPolyline'] ??
-          (route is Map ? route['encodedPolyline'] ?? route['polyline'] : null),
+          route?['encodedPolyline'] ??
+          route?['polyline'],
     );
     return BookingEntity(
       id: id,
@@ -389,11 +442,33 @@ abstract final class RidePlanningParsers {
       bookingNumber: asNonEmptyString(
         map['bookingNumber'] ?? map['number'] ?? map['code'],
       ),
-      serviceCategoryId: asNonEmptyString(map['serviceCategoryId']),
-      serviceName: asNonEmptyString(
-        map['serviceName'] ?? map['service'] ?? map['vehicleName'],
+      serviceCategoryId: asNonEmptyString(
+        map['serviceCategoryId'] ?? service?['serviceCategoryId'],
       ),
-      paymentMethodCode: asNonEmptyString(map['paymentMethodCode']),
+      serviceCode: asNonEmptyString(
+        map['serviceCode'] ?? service?['serviceCode'] ?? service?['code'],
+      ),
+      serviceName: asNonEmptyString(
+        map['serviceName'] ??
+            service?['serviceName'] ??
+            service?['name'] ??
+            (map['service'] is String ? map['service'] : null) ??
+            map['vehicleName'],
+      ),
+      paymentMethodCode: asNonEmptyString(
+        map['paymentMethodCode'] ??
+            payment?['methodCode'] ??
+            payment?['code'],
+      ),
+      paymentMethodName: asNonEmptyString(
+        map['paymentMethodName'] ??
+            payment?['methodName'] ??
+            payment?['name'] ??
+            payment?['label'],
+      ),
+      paymentStatus: asNonEmptyString(
+        map['paymentStatus'] ?? payment?['status'],
+      ),
       pickupAddress: pickup is Map
           ? asNonEmptyString(pickup['address'] ?? pickup['label'])
           : asNonEmptyString(map['pickupAddress']),
@@ -412,10 +487,21 @@ abstract final class RidePlanningParsers {
       dropoffLongitude: dropoff is Map
           ? asDouble(dropoff['longitude'] ?? dropoff['lng'])
           : asDouble(map['dropoffLongitude']),
-      currency: asNonEmptyString(map['currency']),
+      currency: asNonEmptyString(
+        fareMap?['currency'] ?? map['currency'],
+      ),
       finalFare: fare,
+      estimatedAmount: asDouble(
+        fareMap?['estimatedAmount'] ?? map['estimatedAmount'] ?? map['estimatedFare'],
+      ),
+      discountAmount: asDouble(
+        fareMap?['discountAmount'] ?? map['discountAmount'],
+      ),
       driver: assignedDriver(map['driver'] ?? map['assignedDriver']),
+      vehicle: bookingVehicle(map['vehicle']),
       encodedPolyline: encoded,
+      distanceKm: asDouble(map['distanceKm'] ?? route?['distanceKm']),
+      durationMin: asInt(map['durationMin'] ?? route?['durationMin']),
       driverEtaMinutes: () {
         final v = map['driverEtaMinutes'] ?? map['etaMinutes'];
         if (v is num) return v.round();
@@ -423,6 +509,35 @@ abstract final class RidePlanningParsers {
         return null;
       }(),
       recordingConsent: recordingConsent(map),
+      recordingAvailable: asBool(
+        recording?['available'] ?? map['recordingAvailable'],
+      ),
+      createdAt: asDateTime(
+        map['createdAt'] ?? timestamps?['createdAt'],
+      ),
+      acceptedAt: asDateTime(
+        map['acceptedAt'] ?? timestamps?['acceptedAt'],
+      ),
+      arrivedAt: asDateTime(
+        map['arrivedAt'] ?? timestamps?['arrivedAt'],
+      ),
+      startedAt: asDateTime(
+        map['startedAt'] ?? timestamps?['startedAt'],
+      ),
+      completedAt: asDateTime(
+        map['completedAt'] ?? timestamps?['completedAt'],
+      ),
+      cancelledAt: asDateTime(
+        map['cancelledAt'] ?? timestamps?['cancelledAt'],
+      ),
+      cancelledBy: asNonEmptyString(
+        map['cancelledBy'] ?? timestamps?['cancelledBy'],
+      ),
+      cancellationReason: asNonEmptyString(
+        map['cancellationReason'] ??
+            map['cancelReason'] ??
+            timestamps?['cancellationReason'],
+      ),
     );
   }
 

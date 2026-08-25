@@ -140,16 +140,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   SizedBox(height: (w * 0.035).clamp(14.0, 16.0)),
                   SettingsSwitchTile(
                     title: 'Notifications',
-                    subtitle: 'Push notifications and alerts',
+                    subtitle: s.notificationsEnabled
+                        ? 'Ride alerts are on'
+                        : 'Ride alerts are off',
                     icon: Icons.notifications_none_rounded,
                     value: s.notificationsEnabled,
-                    onChanged: (value) {
-                      c.toggleNotifications(value);
+                    onChanged: (value) async {
+                      await c.toggleNotifications(value);
+                      if (!context.mounted) return;
+                      final enabled = ref
+                          .read(settingsControllerProvider)
+                          .notificationsEnabled;
                       _snack(
                         context,
-                        value
-                            ? 'Notifications on. TODO: request OS permission when FCM is integrated.'
-                            : 'Notifications off. TODO: unregister push tokens when backend is ready.',
+                        value && !enabled
+                            ? 'Notifications stay off until you allow them in system settings.'
+                            : enabled
+                            ? 'Ride notifications on'
+                            : 'Ride notifications off',
                       );
                     },
                   ),

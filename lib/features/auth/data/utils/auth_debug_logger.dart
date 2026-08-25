@@ -22,7 +22,7 @@ abstract final class AuthDebugLogger {
     debugPrint('Step 2 — Backend token exchange');
     debugPrint('  POST ${ApiConstants.baseUrl}${AuthConstants.loginPath}');
     debugPrint(
-      '  Body: {auth0Token: <accessToken from Auth0>, deviceInfo: <platform>}',
+      '  Body: {auth0Token: <accessToken from Auth0>, deviceId: <stable uuid>, deviceInfo: <platform>}',
     );
     debugPrint('═══════════════════════════════');
   }
@@ -39,10 +39,14 @@ abstract final class AuthDebugLogger {
   static void logTokenExchangeRequest({
     required String accessToken,
     required String deviceInfo,
+    String? deviceId,
   }) {
     if (!kDebugMode) return;
     debugPrint('── SIGN-IN token exchange request ──');
     debugPrint('  auth0Token: ${_maskToken(accessToken)}');
+    debugPrint(
+      '  deviceId: ${deviceId == null || deviceId.isEmpty ? '(none)' : deviceId}',
+    );
     debugPrint('  deviceInfo: $deviceInfo');
   }
 

@@ -3,8 +3,6 @@ import 'package:go_router/go_router.dart';
 import '../../../features/account/presentation/screens/support_flow_placeholder_screen.dart';
 import '../../../features/chat/presentation/screens/chat_screen.dart';
 import '../../../features/notifications/presentation/screens/notifications_screen.dart';
-import '../../../features/profile/presentation/screens/edit_profile_screen.dart';
-import '../../../features/profile/presentation/screens/profile_screen.dart';
 import '../../../features/ride_booking/presentation/screens/confirm_pickup_screen.dart';
 import '../../../features/ride_booking/presentation/screens/ride_booking_screen.dart';
 import '../../../features/ride_booking/presentation/screens/ride_selection_screen.dart';
@@ -118,10 +116,6 @@ List<RouteBase> get rideRoutes => [
   ),
   GoRoute(
     path: RouteNames.profile,
-    builder: (context, state) => const ProfileScreen(),
-  ),
-  GoRoute(
-    path: RouteNames.editProfile,
-    builder: (context, state) => const EditProfileScreen(),
+    redirect: (context, state) => RouteNames.profileDetails,
   ),
 ];

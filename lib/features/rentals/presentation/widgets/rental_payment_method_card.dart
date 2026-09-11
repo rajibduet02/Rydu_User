@@ -35,11 +35,15 @@ class RentalPaymentMethodCard extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: RentalRideTokens.cashGreen,
+                  color: const Color(0xFF2F6BFF),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 alignment: Alignment.center,
-                child: const Text('💵', style: TextStyle(fontSize: 20)),
+                child: const Icon(
+                  Icons.credit_card_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(

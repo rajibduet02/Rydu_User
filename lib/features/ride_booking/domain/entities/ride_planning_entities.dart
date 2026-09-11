@@ -1,3 +1,5 @@
+export 'booking_payment_entities.dart';
+
 class GeoPointEntity {
   const GeoPointEntity({required this.latitude, required this.longitude});
 

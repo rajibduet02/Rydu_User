@@ -173,7 +173,11 @@ class _FakeRideBookingRepository implements RideBookingRepository {
   Future<List<PaymentMethodEntity>> paymentMethods() async => [];
 
   @override
-  Future<BookingEntity> createBooking({
+  Future<PaymentConfigEntity> paymentConfig() async =>
+      const PaymentConfigEntity(stripeEnabled: false, cardEnabled: false);
+
+  @override
+  Future<CreateBookingResult> createBooking({
     required String serviceCategoryId,
     required LatLngWaypoint pickup,
     required LatLngWaypoint dropoff,
@@ -181,6 +185,10 @@ class _FakeRideBookingRepository implements RideBookingRepository {
     required String paymentMethodCode,
     required String idempotencyKey,
   }) async => throw UnimplementedError();
+
+  @override
+  Future<BookingPaymentEntity> bookingPayment(String bookingId) async =>
+      throw UnimplementedError();
 
   @override
   Future<BookingEntity?> activeBooking() async => null;

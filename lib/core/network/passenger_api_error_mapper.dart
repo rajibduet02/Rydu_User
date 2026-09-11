@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
 
+import '../payments/rydu_payments.dart';
+
 /// Passenger API failure with a user-friendly message.
 class PassengerApiException implements Exception {
   const PassengerApiException(
@@ -24,6 +26,16 @@ abstract final class PassengerApiErrorMapper {
     final extracted = _extract(error.response?.data);
     final code = extracted?.code;
     final message = extracted?.message;
+
+    final stripeMapped = userMessageForCode(code);
+    if (stripeMapped != null) {
+      return PassengerApiException(
+        stripeMapped,
+        code: code,
+        statusCode: status,
+        details: extracted?.details,
+      );
+    }
 
     if (status == 401) {
       return PassengerApiException(
@@ -97,10 +109,25 @@ abstract final class PassengerApiErrorMapper {
     if (root['success'] != false) return null;
     final extracted = _extract(root);
     return PassengerApiException(
-      extracted?.message ?? 'Something went wrong. Please try again.',
+      userMessageForCode(extracted?.code) ??
+          extracted?.message ??
+          'Something went wrong. Please try again.',
       code: extracted?.code,
       details: extracted?.details,
     );
+  }
+
+  /// Maps known payment/Stripe backend codes to user-safe copy.
+  static String? userMessageForCode(String? code) {
+    switch (code) {
+      case 'CARD_PAYMENTS_NOT_ENABLED':
+      case 'STRIPE_MODE_MISMATCH':
+      case 'STRIPE_NOT_CONFIGURED':
+      case 'STRIPE_CURRENCY_UNSUPPORTED':
+        return RyduPayments.cardUnavailableMessage;
+      default:
+        return null;
+    }
   }
 
   static ({String? code, String? message, Map<String, dynamic>? details})?

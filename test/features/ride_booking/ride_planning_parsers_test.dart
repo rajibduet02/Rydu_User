@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:rydu_user/core/maps/encoded_polyline_decoder.dart';
+import 'package:rydu_user/core/network/api_response_parser.dart';
 import 'package:rydu_user/core/network/passenger_api_error_mapper.dart';
 import 'package:rydu_user/features/ride_booking/data/utils/ride_planning_parsers.dart';
 import 'package:rydu_user/features/ride_booking/domain/entities/ride_planning_entities.dart';
@@ -49,6 +50,68 @@ void main() {
       expect(place, isNotNull);
       expect(place!.placeId, '');
       expect(place.latitude, 23.81);
+    });
+
+    test('preserves country and countryCode from place details', () {
+      final place = RidePlanningParsers.place({
+        'placeId': 'p-us',
+        'label': 'Times Square',
+        'address': 'New York',
+        'latitude': 40.758,
+        'longitude': -73.9855,
+        'country': 'United States',
+        'countryCode': 'US',
+      });
+      expect(place!.country, 'United States');
+      expect(place.countryCode, 'US');
+    });
+
+    test('preserves snake_case country_code from reverse geocode', () {
+      final place = RidePlanningParsers.place({
+        'placeId': '',
+        'label': 'Mirpur',
+        'address': 'Dhaka',
+        'lat': 23.81,
+        'lng': 90.41,
+        'country': 'Bangladesh',
+        'country_code': 'BD',
+      });
+      expect(place!.country, 'Bangladesh');
+      expect(place.countryCode, 'BD');
+    });
+
+    group('normalizedCountryCode', () {
+      test('uppercases lowercase ISO codes', () {
+        expect(RidePlanningParsers.normalizedCountryCode('bd'), 'BD');
+        expect(RidePlanningParsers.normalizedCountryCode('us'), 'US');
+      });
+
+      test('keeps uppercase ISO codes', () {
+        expect(RidePlanningParsers.normalizedCountryCode('BD'), 'BD');
+        expect(RidePlanningParsers.normalizedCountryCode('US'), 'US');
+      });
+
+      test('trims whitespace', () {
+        expect(RidePlanningParsers.normalizedCountryCode(' bd '), 'BD');
+      });
+
+      test('returns null when missing', () {
+        expect(RidePlanningParsers.normalizedCountryCode(null), isNull);
+        expect(RidePlanningParsers.normalizedCountryCode(''), isNull);
+        expect(RidePlanningParsers.normalizedCountryCode('  '), isNull);
+      });
+
+      test('returns null for invalid values', () {
+        expect(RidePlanningParsers.normalizedCountryCode('USA'), isNull);
+        expect(RidePlanningParsers.normalizedCountryCode('Bangladesh'), isNull);
+        expect(RidePlanningParsers.normalizedCountryCode('B1'), isNull);
+        expect(RidePlanningParsers.normalizedCountryCode('+1'), isNull);
+        expect(RidePlanningParsers.normalizedCountryCode('U'), isNull);
+      });
+
+      test('passes through other valid ISO codes without mapping to BD/US', () {
+        expect(RidePlanningParsers.normalizedCountryCode('in'), 'IN');
+      });
     });
 
     test('parses route preview and bounds', () {
@@ -293,6 +356,10 @@ void main() {
         isTrue,
       );
       expect(
+        const BookingEntity(id: '1', status: 'quoted').isActive,
+        isTrue,
+      );
+      expect(
         const BookingEntity(id: '1', status: 'completed').isActive,
         isFalse,
       );
@@ -300,6 +367,149 @@ void main() {
         const BookingEntity(id: '1', status: 'cancelled').isActive,
         isFalse,
       );
+    });
+  });
+
+  group('Create booking cash vs card parsing', () {
+    test('cash flat booking parsing is unchanged', () {
+      final result = RidePlanningParsers.createBookingResult({
+        'id': 'b-cash',
+        'status': 'searching',
+        'paymentMethodCode': 'cash',
+        'finalFare': 120.5,
+        'currency': 'BDT',
+        'pickup': {
+          'address': 'Pickup Rd',
+          'latitude': 23.81,
+          'longitude': 90.41,
+        },
+      });
+      expect(result, isNotNull);
+      expect(result!.booking.id, 'b-cash');
+      expect(result.booking.status, 'searching');
+      expect(result.booking.paymentMethodCode, 'cash');
+      expect(result.payment, isNull);
+    });
+
+    test('card wrapper response parses booking and payment', () {
+      final result = RidePlanningParsers.createBookingResult({
+        'booking': {
+          'id': 'b-card',
+          'status': 'quoted',
+          'paymentMethodCode': 'card',
+        },
+        'payment': {
+          'method': 'card',
+          'paymentIntentId': 'pi_123',
+          'clientSecret': 'pi_123_secret_abc',
+          'status': 'requires_payment_method',
+        },
+      });
+      expect(result, isNotNull);
+      expect(result!.booking.id, 'b-card');
+      expect(result.booking.status, 'quoted');
+      expect(result.payment, isNotNull);
+      expect(result.payment!.clientSecret, 'pi_123_secret_abc');
+      expect(result.payment!.needsPayment, isTrue);
+    });
+
+    test('cash nested payment without card fields is not a card wrapper', () {
+      final result = RidePlanningParsers.createBookingResult({
+        'id': 'b-cash-2',
+        'status': 'searching',
+        'paymentMethodCode': 'cash',
+        'payment': {'method': 'cash', 'status': 'unpaid'},
+      });
+      expect(result!.payment, isNull);
+      expect(result.booking.status, 'searching');
+    });
+  });
+
+  group('Payment config and methods', () {
+    test('parses backend data-array envelope with code/name/isActive', () {
+      final methods = RidePlanningParsers.paymentMethods({
+        'success': true,
+        'data': [
+          {
+            'id': '1',
+            'code': 'cash',
+            'name': 'Cash',
+            'isActive': true,
+          },
+          {
+            'id': '2',
+            'code': 'card',
+            'name': 'Card',
+            'isActive': true,
+          },
+        ],
+      });
+      expect(methods, hasLength(2));
+      expect(methods.map((m) => m.code).toList(), ['cash', 'card']);
+      expect(methods.map((m) => m.label).toList(), ['Cash', 'Card']);
+      expect(CardBookingPayment.backendIncludesCard(methods), isTrue);
+      expect(
+        methods.any((m) => m.code.toLowerCase() == 'card'),
+        isTrue,
+      );
+
+      final config = RidePlanningParsers.paymentConfig({
+        'stripeEnabled': true,
+        'cardEnabled': true,
+        'publishableKey': 'pk_test_example',
+      });
+      expect(config!.canInitializeStripe, isTrue);
+      expect(
+        config.canInitializeStripe &&
+            CardBookingPayment.backendIncludesCard(methods),
+        isTrue,
+      );
+    });
+
+    test('unwrapList reads payment-methods data array, not the root object', () {
+      final list = ApiResponseParser.unwrapList({
+        'success': true,
+        'data': [
+          {'id': '1', 'code': 'cash', 'name': 'Cash', 'isActive': true},
+          {'id': '2', 'code': 'card', 'name': 'Card', 'isActive': true},
+        ],
+      });
+      expect(list, hasLength(2));
+      expect(ApiResponseParser.unwrapData({
+        'success': true,
+        'data': [
+          {'code': 'card', 'name': 'Card'},
+        ],
+      }).containsKey('success'), isTrue);
+    });
+
+    test('card hidden when backend does not return it', () {
+      final methods = [
+        RidePlanningParsers.paymentMethod({
+          'code': 'cash',
+          'label': 'Cash',
+          'isDefault': true,
+        }),
+      ];
+      expect(methods.first, isNotNull);
+      expect(isCardPaymentMethodCode(methods.first!.code), isFalse);
+      expect(methods.any((m) => isCardPaymentMethodCode(m?.code)), isFalse);
+    });
+
+    test('publishable key config is accepted only for pk_ keys', () {
+      final ok = RidePlanningParsers.paymentConfig({
+        'stripeEnabled': true,
+        'cardEnabled': true,
+        'publishableKey': 'pk_test_example',
+      });
+      expect(ok!.canInitializeStripe, isTrue);
+      final secret = RidePlanningParsers.paymentConfig({
+        'stripeEnabled': true,
+        'cardEnabled': true,
+        'publishableKey': 'sk_test_secret',
+      });
+      expect(secret!.publishableKey, isNull);
+      expect(secret.canInitializeStripe, isFalse);
     });
   });
 

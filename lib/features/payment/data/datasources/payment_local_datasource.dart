@@ -12,7 +12,7 @@ abstract interface class PaymentLocalDatasource {
 
 class PaymentLocalDatasourceImpl implements PaymentLocalDatasource {
   static const _methods = <PaymentMethodModel>[
-    PaymentMethodModel(id: 'cash', label: 'Cash', isDefault: true),
+    PaymentMethodModel(id: 'card', label: 'Card', isDefault: true),
     PaymentMethodModel(
       id: 'card_visa',
       label: 'Visa •••• 6554',

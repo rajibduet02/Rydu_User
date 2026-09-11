@@ -85,7 +85,9 @@ abstract interface class RideBookingRepository {
 
   Future<List<PaymentMethodEntity>> paymentMethods();
 
-  Future<BookingEntity> createBooking({
+  Future<PaymentConfigEntity> paymentConfig();
+
+  Future<CreateBookingResult> createBooking({
     required String serviceCategoryId,
     required LatLngWaypoint pickup,
     required LatLngWaypoint dropoff,
@@ -93,6 +95,8 @@ abstract interface class RideBookingRepository {
     required String paymentMethodCode,
     required String idempotencyKey,
   });
+
+  Future<BookingPaymentEntity> bookingPayment(String bookingId);
 
   Future<BookingEntity?> activeBooking();
 

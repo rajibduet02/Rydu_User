@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/payment_method_provider.dart';
+import '../../../ride_booking/domain/entities/ride_planning_entities.dart';
+import '../../../ride_booking/presentation/providers/ride_booking_provider.dart';
 
 /// Screenshot / design tokens for the Pay with sheet.
 abstract final class PaymentMethodModalTokens {
@@ -14,7 +16,6 @@ abstract final class PaymentMethodModalTokens {
   static const muted = Color(0xFFB8C0D4);
   static const white = Color(0xFFFFFFFF);
   static const black = Color(0xFF111827);
-  static const cashGreen = Color(0xFF22C55E);
   static const logoBlack = Color(0xFF111827);
   static const switchOffTrack = border;
   static const switchOffThumb = white;
@@ -29,6 +30,7 @@ class PaymentMethodModal extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(paymentMethodControllerProvider);
     final c = ref.read(paymentMethodControllerProvider.notifier);
+    final booking = ref.watch(rideBookingControllerProvider);
     final media = MediaQuery.of(context);
     final w = media.size.width;
     final hPad = (w * 0.06).clamp(20.0, 24.0);
@@ -184,25 +186,15 @@ class PaymentMethodModal extends ConsumerWidget {
                           ),
                         ),
                         const SizedBox(height: 14),
-                        PaymentOptionCard(
-                          selected: s.selectedPaymentMethod == 'Cash',
-                          leading: Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: PaymentMethodModalTokens.cashGreen,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            alignment: Alignment.center,
-                            child: const Text(
-                              '💵',
-                              style: TextStyle(fontSize: 20),
-                            ),
-                          ),
-                          title: 'Cash',
-                          showRadio: true,
-                          onTap: () {
-                            c.selectPaymentMethod('Cash');
+                        ..._bookingPaymentOptions(
+                          methods: booking.paymentMethods,
+                          selectedLabel: s.selectedPaymentMethod,
+                          selectedCode: booking.paymentMethodCode,
+                          onSelect: (method) {
+                            c.selectPaymentMethod(method.label);
+                            ref
+                                .read(rideBookingControllerProvider.notifier)
+                                .updatePaymentMethod(method.label);
                             close();
                           },
                         ),
@@ -252,6 +244,40 @@ class PaymentMethodModal extends ConsumerWidget {
   static String _formatRyduCash(double amount) {
     return 'BDT ${amount.toStringAsFixed(2)}';
   }
+}
+
+List<Widget> _bookingPaymentOptions({
+  required List<PaymentMethodEntity> methods,
+  required String selectedLabel,
+  required String selectedCode,
+  required void Function(PaymentMethodEntity method) onSelect,
+}) {
+  final visible = CardBookingPayment.visibleForBooking(methods);
+  final children = <Widget>[];
+  for (var i = 0; i < visible.length; i++) {
+    final method = visible[i];
+    final selected =
+        selectedLabel == method.label ||
+        selectedCode.toLowerCase() == method.code.toLowerCase() ||
+        isCardPaymentMethodCode(selectedCode);
+    children.add(
+      PaymentOptionCard(
+        selected: selected,
+        leading: const Icon(
+          Icons.credit_card_rounded,
+          color: PaymentMethodModalTokens.white,
+          size: 22,
+        ),
+        title: method.label,
+        showRadio: true,
+        onTap: () => onSelect(method),
+      ),
+    );
+    if (i < visible.length - 1) {
+      children.add(const SizedBox(height: 12));
+    }
+  }
+  return children;
 }
 
 class PaymentAccountTypeTabs extends StatelessWidget {

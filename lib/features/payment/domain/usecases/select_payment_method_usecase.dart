@@ -11,10 +11,10 @@ class SelectPaymentMethodUsecase {
     for (final m in methods) {
       if (m.label == methodLabel || m.id == methodLabel) return m;
     }
-    if (methodLabel == 'Cash') {
+    if (methodLabel == 'Card' || methodLabel.toLowerCase() == 'card') {
       return const PaymentMethodEntity(
-        id: 'cash',
-        label: 'Cash',
+        id: 'card',
+        label: 'Card',
         isDefault: true,
       );
     }

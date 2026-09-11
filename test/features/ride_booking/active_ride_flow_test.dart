@@ -8,6 +8,22 @@ import 'package:rydu_user/features/ride_booking/presentation/providers/ride_book
 
 void main() {
   group('ridePhaseFromBookingStatus', () {
+    test('quoted card booking is payment pending not searching', () {
+      expect(
+        ridePhaseFromBookingStatus('quoted'),
+        RidePlanningPhase.paymentPending,
+      );
+      const state = RideBookingState(
+        bookingId: 'b-quoted',
+        bookingStatus: 'quoted',
+        phase: RidePlanningPhase.paymentPending,
+      );
+      expect(state.isSearchingForDriver, isFalse);
+      expect(state.isPaymentPending, isTrue);
+      expect(state.hasActiveBooking, isTrue);
+      expect(state.canCancelBooking, isTrue);
+    });
+
     test('searching keeps searching phase', () {
       expect(
         ridePhaseFromBookingStatus('searching'),
@@ -119,11 +135,13 @@ void main() {
       expect(state.errorMessage, isNotNull);
     });
 
-    test('default state has no hardcoded pickup or fare', () {
+    test('default state uses Card payment, not Cash', () {
       const state = RideBookingState();
       expect(state.pickupLocation, isEmpty);
       expect(state.estimatedFare, isNull);
-      expect(state.paymentMethodCode, isEmpty);
+      expect(state.paymentMethodCode, 'card');
+      expect(state.paymentMethod, 'Card');
+      expect(state.bookingPaymentLabel, 'Card');
     });
 
     test('pickup spot label falls back to selected pickup', () {
@@ -255,14 +273,22 @@ void main() {
   });
 
   group('payment method selection', () {
-    test('uses backend method code when present', () {
+    test('booking UI shows Card only even if backend also returns cash', () {
       const methods = [
         PaymentMethodEntity(code: 'cash', label: 'Cash', isDefault: true),
+        PaymentMethodEntity(code: 'card', label: 'Card'),
         PaymentMethodEntity(code: 'bkash', label: 'bKash'),
       ];
-      final selected = methods.firstWhere((m) => m.isDefault);
-      expect(selected.code, 'cash');
-      expect(methods.map((m) => m.code), containsAll(['cash', 'bkash']));
+      final visible = CardBookingPayment.visibleForBooking(methods);
+      expect(visible, hasLength(1));
+      expect(visible.first.code, 'card');
+      expect(visible.map((m) => m.code), isNot(contains('cash')));
+    });
+
+    test('empty backend methods still show Card, never Cash', () {
+      final visible = CardBookingPayment.visibleForBooking(const []);
+      expect(visible.single.code, 'card');
+      expect(visible.single.label, 'Card');
     });
   });
 }

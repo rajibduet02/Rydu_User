@@ -168,7 +168,10 @@ class RideBookingRepositoryImpl implements RideBookingRepository {
       _passenger.paymentMethods();
 
   @override
-  Future<BookingEntity> createBooking({
+  Future<PaymentConfigEntity> paymentConfig() => _passenger.paymentConfig();
+
+  @override
+  Future<CreateBookingResult> createBooking({
     required String serviceCategoryId,
     required LatLngWaypoint pickup,
     required LatLngWaypoint dropoff,
@@ -183,6 +186,10 @@ class RideBookingRepositoryImpl implements RideBookingRepository {
     paymentMethodCode: paymentMethodCode,
     idempotencyKey: idempotencyKey,
   );
+
+  @override
+  Future<BookingPaymentEntity> bookingPayment(String bookingId) =>
+      _passenger.bookingPayment(bookingId);
 
   @override
   Future<BookingEntity?> activeBooking() => _passenger.activeBooking();

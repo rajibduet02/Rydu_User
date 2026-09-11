@@ -22,25 +22,20 @@ class PaymentRemoteDatasourceImpl implements PaymentRemoteDatasource {
       );
       final failed = PassengerApiErrorMapper.fromEnvelope(response.data);
       if (failed != null) throw failed;
-      final data = ApiResponseParser.unwrapData(response.data);
-      final listRaw =
-          data['paymentMethods'] ?? data['methods'] ?? data['items'];
+      final listRaw = ApiResponseParser.unwrapList(response.data);
       final methods = <PaymentMethodModel>[];
-      if (listRaw is List) {
-        for (final item in listRaw) {
-          if (item is! Map) continue;
-          final map = Map<String, dynamic>.from(item);
-          final code = map['code']?.toString() ?? map['id']?.toString();
-          if (code == null || code.isEmpty) continue;
-          methods.add(
-            PaymentMethodModel(
-              id: code,
-              label:
-                  map['label']?.toString() ?? map['name']?.toString() ?? code,
-              isDefault: map['isDefault'] == true || map['default'] == true,
-            ),
-          );
-        }
+      for (final item in listRaw) {
+        if (item is! Map) continue;
+        final map = Map<String, dynamic>.from(item);
+        final code = map['code']?.toString().trim();
+        if (code == null || code.isEmpty) continue;
+        methods.add(
+          PaymentMethodModel(
+            id: code,
+            label: map['name']?.toString() ?? map['label']?.toString() ?? code,
+            isDefault: map['isDefault'] == true || map['default'] == true,
+          ),
+        );
       }
       return methods;
     } on DioException catch (e) {

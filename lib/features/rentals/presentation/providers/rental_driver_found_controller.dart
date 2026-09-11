@@ -11,7 +11,7 @@ class RentalDriverFoundState {
     this.startingPoint = '35 Road No. 2',
     this.rentalHours = 1,
     this.includedKm = 15,
-    this.paymentMethod = 'Cash',
+    this.paymentMethod = 'Card',
     this.startingInMinutes = 2,
     this.isDetailsExpanded = true,
     this.selectedCancelReason,
@@ -85,7 +85,10 @@ class RentalDriverFoundController extends Notifier<RentalDriverFoundState> {
   void initializeFromExtra(Map<String, dynamic> extra) {
     final hours = _asInt(extra['rentalHours'], 1).clamp(1, 24);
     final km = hours * 15;
-    final pay = extra['paymentMethod'] as String? ?? 'Cash';
+    final rawPay = extra['paymentMethod'] as String? ?? 'Card';
+    final pay = rawPay.trim().isEmpty || rawPay.toLowerCase() == 'cash'
+        ? 'Card'
+        : rawPay;
 
     state = RentalDriverFoundState(
       rentalId: '#REN-5421',

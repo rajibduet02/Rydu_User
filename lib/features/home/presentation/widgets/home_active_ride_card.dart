@@ -118,13 +118,17 @@ class HomeActiveRideCard extends ConsumerWidget {
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () => c.resumeActiveRide(),
+                      onPressed: state.isPaymentPending
+                          ? () => c.retryCardPayment()
+                          : () => c.resumeActiveRide(),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: HomeScreenTokens.white,
                         side: const BorderSide(color: HomeScreenTokens.border),
                         padding: const EdgeInsets.symmetric(vertical: 10),
                       ),
-                      child: const Text('View ride'),
+                      child: Text(
+                        state.isPaymentPending ? 'Retry Payment' : 'View ride',
+                      ),
                     ),
                   ),
                   if (showCancel && state.canCancelBooking) ...[

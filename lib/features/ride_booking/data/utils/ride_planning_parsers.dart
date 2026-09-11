@@ -1,3 +1,4 @@
+import '../../../../core/network/api_response_parser.dart';
 import '../../domain/entities/ride_planning_entities.dart';
 
 abstract final class RidePlanningParsers {
@@ -24,6 +25,23 @@ abstract final class RidePlanningParsers {
     if (text.isEmpty) return null;
     return text;
   }
+
+  /// Uppercase ISO 3166-1 alpha-2, or null if missing/invalid.
+  ///
+  /// Does not map country names (e.g. "Bangladesh") or dial codes.
+  static String? normalizedCountryCode(String? raw) {
+    final text = asNonEmptyString(raw);
+    if (text == null) return null;
+    final code = text.toUpperCase();
+    if (code.length != 2) return null;
+    if (!_isAsciiLetter(code.codeUnitAt(0)) ||
+        !_isAsciiLetter(code.codeUnitAt(1))) {
+      return null;
+    }
+    return code;
+  }
+
+  static bool _isAsciiLetter(int unit) => unit >= 65 && unit <= 90;
 
   static PromotionEntity? promotion(dynamic raw) {
     if (raw == null) return null;
@@ -127,7 +145,7 @@ abstract final class RidePlanningParsers {
       city: asNonEmptyString(map['city']),
       district: asNonEmptyString(map['district']),
       country: asNonEmptyString(map['country']),
-      countryCode: asNonEmptyString(map['countryCode']),
+      countryCode: asNonEmptyString(map['countryCode'] ?? map['country_code']),
       postalCode: asNonEmptyString(map['postalCode']),
       types: types,
     );
@@ -230,16 +248,89 @@ abstract final class RidePlanningParsers {
     return BookingQuoteEntity(route: route, quotes: quotes);
   }
 
+  static PaymentConfigEntity? paymentConfig(dynamic raw) {
+    if (raw is! Map) return null;
+    final map = Map<String, dynamic>.from(raw);
+    final key = asNonEmptyString(
+      map['publishableKey'] ?? map['publishable_key'],
+    );
+    final safeKey = (key != null && key.startsWith('pk_')) ? key : null;
+    return PaymentConfigEntity(
+      stripeEnabled: map['stripeEnabled'] == true || map['stripe_enabled'] == true,
+      cardEnabled: map['cardEnabled'] == true || map['card_enabled'] == true,
+      publishableKey: safeKey,
+    );
+  }
+
+  static BookingPaymentEntity? bookingPayment(dynamic raw) {
+    if (raw is! Map) return null;
+    final map = Map<String, dynamic>.from(raw);
+    final method = asNonEmptyString(
+      map['paymentMethod'] ??
+          map['method'] ??
+          map['paymentMethodCode'] ??
+          map['code'],
+    );
+    final status = asNonEmptyString(map['status']);
+    if (method == null && status == null) return null;
+    return BookingPaymentEntity(
+      paymentMethod: method ?? '',
+      status: status ?? '',
+      paymentIntentId: asNonEmptyString(
+        map['paymentIntentId'] ?? map['payment_intent_id'],
+      ),
+      amount: asInt(map['amount']),
+      currency: asNonEmptyString(map['currency']),
+      clientSecret: asNonEmptyString(
+        map['clientSecret'] ?? map['client_secret'],
+      ),
+    );
+  }
+
+  /// Parses cash (flat booking) and card wrapper (`booking` + `payment`) safely.
+  static CreateBookingResult? createBookingResult(dynamic raw) {
+    if (raw is! Map) return null;
+    final map = Map<String, dynamic>.from(raw);
+    final nestedBooking = asMap(map['booking']);
+    final nestedPayment = asMap(map['payment']);
+    final parsedBooking = booking(nestedBooking ?? map);
+    if (parsedBooking == null) return null;
+
+    BookingPaymentEntity? payment;
+    // Only treat sibling `payment` as Phase C card payload when a nested
+    // `booking` object is present. Cash responses stay a flat booking.
+    if (nestedBooking != null && nestedPayment != null) {
+      final parsedPayment = bookingPayment(nestedPayment);
+      final looksLikeCard =
+          parsedPayment != null &&
+          (parsedPayment.hasClientSecret ||
+              parsedPayment.paymentIntentId != null ||
+              parsedPayment.isCard);
+      if (looksLikeCard) payment = parsedPayment;
+    }
+    return CreateBookingResult(booking: parsedBooking, payment: payment);
+  }
+
   static PaymentMethodEntity? paymentMethod(dynamic raw) {
     if (raw is! Map) return null;
     final map = Map<String, dynamic>.from(raw);
-    final code = asNonEmptyString(map['code'] ?? map['id'] ?? map['method']);
+    final code = asNonEmptyString(map['code'] ?? map['method']);
     if (code == null) return null;
     return PaymentMethodEntity(
       code: code,
-      label: asNonEmptyString(map['label'] ?? map['name']) ?? code,
+      label: asNonEmptyString(map['name'] ?? map['label']) ?? code,
       isDefault: map['isDefault'] == true || map['default'] == true,
     );
+  }
+
+  /// Parses `{ success, data: [ { code, name, isActive, ... } ] }` and nested list envelopes.
+  static List<PaymentMethodEntity> paymentMethods(dynamic raw) {
+    final methods = <PaymentMethodEntity>[];
+    for (final item in ApiResponseParser.unwrapList(raw)) {
+      final method = paymentMethod(item);
+      if (method != null) methods.add(method);
+    }
+    return methods;
   }
 
   static AssignedDriverEntity? assignedDriver(dynamic raw) {

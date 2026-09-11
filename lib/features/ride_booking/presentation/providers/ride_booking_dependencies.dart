@@ -8,6 +8,7 @@ import '../../data/datasources/passenger_ride_remote_datasource.dart';
 import '../../data/datasources/ride_booking_local_datasource.dart';
 import '../../data/datasources/ride_booking_remote_datasource.dart';
 import '../../data/repositories/ride_booking_repository_impl.dart';
+import '../../data/services/stripe_payment_gateway.dart';
 import '../../domain/repositories/ride_booking_repository.dart';
 import '../../domain/usecases/confirm_pickup_usecase.dart';
 import '../../domain/usecases/confirm_ride_usecase.dart';
@@ -55,6 +56,16 @@ final rideBookingRepositoryProvider = Provider<RideBookingRepository>((ref) {
     remoteDatasource: ref.watch(rideBookingRemoteDatasourceProvider),
     passengerRemoteDatasource: ref.watch(passengerRideRemoteDatasourceProvider),
   );
+});
+
+final stripePaymentGatewayProvider = Provider<StripePaymentGateway>((ref) {
+  return FlutterStripePaymentGateway();
+});
+
+typedef PaymentPollDelay = Future<void> Function(Duration duration);
+
+final paymentPollDelayProvider = Provider<PaymentPollDelay>((ref) {
+  return Future<void>.delayed;
 });
 
 final getSuggestedLocationsUsecaseProvider =

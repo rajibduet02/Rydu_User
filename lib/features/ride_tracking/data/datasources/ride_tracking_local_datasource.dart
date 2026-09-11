@@ -49,7 +49,7 @@ class RideTrackingLocalDatasourceImpl implements RideTrackingLocalDatasource {
         eta: _defaultDriver.eta,
       ),
       estimatedFare: estimatedFare ?? 'BDT 155.84',
-      paymentMethod: paymentMethod ?? 'Cash',
+      paymentMethod: paymentMethod ?? 'Card',
     );
   }
 

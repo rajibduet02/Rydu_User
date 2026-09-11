@@ -11,7 +11,7 @@ abstract final class PaymentAccountTypes {
 
 class PaymentMethodState {
   const PaymentMethodState({
-    this.selectedPaymentMethod = '',
+    this.selectedPaymentMethod = 'Card',
     this.selectedAccountType = PaymentAccountTypes.personal,
     this.isRyduBalanceEnabled = false,
     this.ryduCashBalance = 0,
@@ -63,15 +63,19 @@ class PaymentMethodController extends Notifier<PaymentMethodState> {
       final methods = await ref.read(getPaymentMethodsUsecaseProvider).call();
       String? preferredLabel;
       for (final method in methods) {
-        if (method.isDefault) {
+        final id = method.id.toLowerCase();
+        final label = method.label.toLowerCase();
+        if (id == 'card' || label.contains('card')) {
           preferredLabel = method.label;
           break;
         }
       }
-      preferredLabel ??= methods.isNotEmpty ? methods.first.label : null;
+      if (preferredLabel == null || preferredLabel.toLowerCase() == 'cash') {
+        preferredLabel = 'Card';
+      }
       state = state.copyWith(
         ryduCashBalance: balance,
-        selectedPaymentMethod: preferredLabel ?? state.selectedPaymentMethod,
+        selectedPaymentMethod: preferredLabel,
         clearError: true,
       );
     } catch (_) {
@@ -83,12 +87,15 @@ class PaymentMethodController extends Notifier<PaymentMethodState> {
     state = state.copyWith(clearError: true);
   }
 
-  void reset({String paymentMethod = ''}) {
+  void reset({String paymentMethod = 'Card'}) {
     state = PaymentMethodState(selectedPaymentMethod: paymentMethod);
   }
 
   void selectPaymentMethod(String method) {
-    state = state.copyWith(selectedPaymentMethod: method, clearError: true);
+    final label = method.trim().isEmpty || method.toLowerCase() == 'cash'
+        ? 'Card'
+        : method;
+    state = state.copyWith(selectedPaymentMethod: label, clearError: true);
   }
 
   void selectAccountType(String type) {

@@ -6,10 +6,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../models/ride_flow_extra.dart';
-import '../../../payment/presentation/providers/payment_method_provider.dart';
 import '../../../payment/presentation/widgets/payment_method_sheet.dart';
 import '../providers/ride_booking_provider.dart';
 import '../theme/ride_booking_tokens.dart';
+import '../widgets/card_payment_status_panel.dart';
 import '../widgets/payment_method_tile.dart';
 import '../widgets/pickup_location_card.dart';
 
@@ -27,7 +27,6 @@ class _ConfirmPickupScreenState extends ConsumerState<ConfirmPickupScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(rideBookingControllerProvider);
-    final payment = ref.watch(paymentMethodControllerProvider);
     final c = ref.read(rideBookingControllerProvider.notifier);
 
     if (!_initialized) {
@@ -201,14 +200,28 @@ class _ConfirmPickupScreenState extends ConsumerState<ConfirmPickupScreen> {
                     ),
                   ],
                   const SizedBox(height: 16),
-                  PaymentMethodTile(
-                    method: payment.selectedPaymentMethod,
-                    onTap: () async {
-                      await PaymentMethodSheet.show(context);
-                      if (!context.mounted) return;
-                      c.syncPaymentFromProvider();
-                    },
-                  ),
+                  if (state.showsCardPaymentPanel) ...[
+                    CardPaymentStatusPanel(
+                      state: state,
+                      onRetry: () {
+                        c.retryCardPayment();
+                      },
+                      onCancel: () async {
+                        final ok = await c.cancelActiveBooking();
+                        if (!context.mounted) return;
+                        if (ok && context.canPop()) context.pop();
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                  ] else
+                    PaymentMethodTile(
+                      method: state.bookingPaymentLabel,
+                      onTap: () async {
+                        await PaymentMethodSheet.show(context);
+                        if (!context.mounted) return;
+                        c.syncPaymentFromProvider();
+                      },
+                    ),
                   const SizedBox(height: 20),
                   if (state.isLoadingPickupSpots)
                     const Padding(
@@ -240,7 +253,11 @@ class _ConfirmPickupScreenState extends ConsumerState<ConfirmPickupScreen> {
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton(
-                      onPressed: state.isLoading || state.isCreatingBooking
+                      onPressed:
+                          state.isLoading ||
+                              state.isCreatingBooking ||
+                              state.isPaymentPending ||
+                              state.showsCardPaymentPanel
                           ? null
                           : c.confirmPickup,
                       style: FilledButton.styleFrom(

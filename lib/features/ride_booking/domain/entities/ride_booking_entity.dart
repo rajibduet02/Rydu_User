@@ -8,7 +8,7 @@ class RideBookingEntity {
     this.destination,
     this.selectedOption,
     this.estimatedFare,
-    this.paymentMethod = 'Cash',
+    this.paymentMethod = 'Card',
     this.pickupSpotIndex = 0,
     this.pickupConfirmed = false,
   });

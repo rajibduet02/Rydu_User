@@ -5,8 +5,10 @@ import '../../../../core/constants/passenger_api_paths.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_response_parser.dart';
 import '../../../../core/network/passenger_api_error_mapper.dart';
+import '../../../../core/payments/stripe_debug.dart';
 import '../../domain/entities/pickup_spot_entity.dart';
 import '../../domain/entities/ride_planning_entities.dart';
+import '../utils/booking_create_request.dart';
 import '../utils/ride_planning_parsers.dart';
 
 abstract interface class PassengerRideRemoteDatasource {
@@ -64,7 +66,9 @@ abstract interface class PassengerRideRemoteDatasource {
 
   Future<List<PaymentMethodEntity>> paymentMethods();
 
-  Future<BookingEntity> createBooking({
+  Future<PaymentConfigEntity> paymentConfig();
+
+  Future<CreateBookingResult> createBooking({
     required String serviceCategoryId,
     required LatLngWaypoint pickup,
     required LatLngWaypoint dropoff,
@@ -73,6 +77,8 @@ abstract interface class PassengerRideRemoteDatasource {
     required String idempotencyKey,
     String schedulingType = 'instant',
   });
+
+  Future<BookingPaymentEntity> bookingPayment(String bookingId);
 
   Future<BookingEntity?> activeBooking();
 
@@ -389,29 +395,73 @@ class PassengerRideRemoteDatasourceImpl
 
   @override
   Future<List<PaymentMethodEntity>> paymentMethods() async {
+    final url = StripeDebug.requestUrl(
+      _apiClient.dio,
+      PassengerApiPaths.paymentMethods,
+    );
     try {
       final response = await _apiClient.dio.get<dynamic>(
         PassengerApiPaths.paymentMethods,
       );
+      StripeDebug.httpGet(
+        url: url,
+        status: response.statusCode,
+        body: response.data,
+      );
       _throwIfFailed(response.data);
-      final data = ApiResponseParser.unwrapData(response.data);
-      final listRaw =
-          data['paymentMethods'] ?? data['methods'] ?? data['items'] ?? data;
-      final methods = <PaymentMethodEntity>[];
-      if (listRaw is List) {
-        for (final item in listRaw) {
-          final method = RidePlanningParsers.paymentMethod(item);
-          if (method != null) methods.add(method);
-        }
-      }
+      final methods = RidePlanningParsers.paymentMethods(response.data);
+      final codes = methods.map((m) => m.code).toList();
+      StripeDebug.paymentMethodsParsed(
+        codes: codes,
+        cardReturnedByBackend: CardBookingPayment.backendIncludesCard(methods),
+      );
       return methods;
     } on DioException catch (e) {
+      _logStripeApiError(url, e);
       throw PassengerApiErrorMapper.fromDio(e);
+    } catch (e) {
+      _logStripeApiError(url, e);
+      rethrow;
     }
   }
 
   @override
-  Future<BookingEntity> createBooking({
+  Future<PaymentConfigEntity> paymentConfig() async {
+    final url = StripeDebug.requestUrl(
+      _apiClient.dio,
+      PassengerApiPaths.paymentsConfig,
+    );
+    try {
+      final response = await _apiClient.dio.get<dynamic>(
+        PassengerApiPaths.paymentsConfig,
+      );
+      StripeDebug.httpGet(
+        url: url,
+        status: response.statusCode,
+        body: response.data,
+      );
+      _throwIfFailed(response.data);
+      final data = ApiResponseParser.unwrapData(response.data);
+      final config =
+          RidePlanningParsers.paymentConfig(data) ??
+          const PaymentConfigEntity(stripeEnabled: false, cardEnabled: false);
+      StripeDebug.paymentConfigParsed(
+        stripeEnabled: config.stripeEnabled,
+        cardEnabled: config.cardEnabled,
+        publishableKey: config.publishableKey,
+      );
+      return config;
+    } on DioException catch (e) {
+      _logStripeApiError(url, e);
+      throw PassengerApiErrorMapper.fromDio(e);
+    } catch (e) {
+      _logStripeApiError(url, e);
+      rethrow;
+    }
+  }
+
+  @override
+  Future<CreateBookingResult> createBooking({
     required String serviceCategoryId,
     required LatLngWaypoint pickup,
     required LatLngWaypoint dropoff,
@@ -425,28 +475,91 @@ class PassengerRideRemoteDatasourceImpl
         debugPrint('════════ CREATE BOOKING ════════');
         debugPrint('POST ${PassengerApiPaths.bookings}');
         debugPrint('Idempotency-Key: $idempotencyKey');
+        debugPrint('paymentMethodCode: $paymentMethodCode');
       }
       final response = await _apiClient.dio.post<dynamic>(
         PassengerApiPaths.bookings,
-        data: {
-          'serviceCategoryId': serviceCategoryId,
-          'pickup': pickup.toJson(includeSpotLabel: true),
-          'dropoff': dropoff.toJson(),
-          'stops': stops.map((s) => s.toJson()).toList(),
-          'paymentMethodCode': paymentMethodCode,
-          'schedulingType': schedulingType,
-        },
+        data: BookingCreateRequest.body(
+          serviceCategoryId: serviceCategoryId,
+          pickup: pickup,
+          dropoff: dropoff,
+          stops: stops,
+          paymentMethodCode: paymentMethodCode,
+          schedulingType: schedulingType,
+        ),
         options: Options(headers: {'Idempotency-Key': idempotencyKey}),
+      );
+      StripeDebug.httpPost(
+        url: StripeDebug.requestUrl(_apiClient.dio, PassengerApiPaths.bookings),
+        status: response.statusCode,
+        body: response.data,
       );
       _throwIfFailed(response.data);
       final data = ApiResponseParser.unwrapData(response.data);
-      final booking = RidePlanningParsers.booking(data['booking'] ?? data);
-      if (booking == null) {
+      final result = RidePlanningParsers.createBookingResult(data);
+      if (result == null) {
         throw const PassengerApiException('Invalid create booking response.');
       }
-      return booking;
+      StripeDebug.createBookingResult(
+        bookingId: result.booking.id,
+        bookingStatus: result.booking.status,
+        paymentMethod:
+            result.payment?.paymentMethod ?? result.booking.paymentMethodCode,
+        paymentStatus: result.payment?.status,
+        paymentIntentId: result.payment?.paymentIntentId,
+        clientSecretPresent: result.payment?.hasClientSecret == true,
+      );
+      return result;
     } on DioException catch (e) {
+      _logStripeApiError(
+        StripeDebug.requestUrl(_apiClient.dio, PassengerApiPaths.bookings),
+        e,
+      );
       throw PassengerApiErrorMapper.fromDio(e);
+    } catch (e) {
+      _logStripeApiError(
+        StripeDebug.requestUrl(_apiClient.dio, PassengerApiPaths.bookings),
+        e,
+      );
+      rethrow;
+    }
+  }
+
+  @override
+  Future<BookingPaymentEntity> bookingPayment(String bookingId) async {
+    final url = StripeDebug.requestUrl(
+      _apiClient.dio,
+      PassengerApiPaths.bookingPayment(bookingId),
+    );
+    try {
+      final response = await _apiClient.dio.get<dynamic>(
+        PassengerApiPaths.bookingPayment(bookingId),
+      );
+      StripeDebug.httpGet(
+        url: url,
+        status: response.statusCode,
+        body: response.data,
+      );
+      _throwIfFailed(response.data);
+      final data = ApiResponseParser.unwrapData(response.data);
+      final payment = RidePlanningParsers.bookingPayment(data);
+      if (payment == null) {
+        throw const PassengerApiException('Invalid booking payment response.');
+      }
+      StripeDebug.paymentStatus(
+        attempt: StripeDebug.pollAttempt,
+        bookingId: bookingId,
+        status: payment.status,
+        paymentIntentId: payment.paymentIntentId,
+        clientSecretPresent: payment.hasClientSecret,
+      );
+      return payment;
+    } on DioException catch (e) {
+      _logStripeApiError(url, e);
+      throw PassengerApiErrorMapper.fromDio(e);
+    } catch (e) {
+      _logStripeApiError(url, e);
+      rethrow;
     }
   }
 
@@ -538,5 +651,23 @@ class PassengerRideRemoteDatasourceImpl
   void _throwIfFailed(dynamic raw) {
     final error = PassengerApiErrorMapper.fromEnvelope(raw);
     if (error != null) throw error;
+  }
+
+  void _logStripeApiError(String endpoint, Object error) {
+    if (error is DioException) {
+      StripeDebug.apiError(
+        endpoint: endpoint,
+        statusCode: error.response?.statusCode,
+        responseBody: error.response?.data,
+        exceptionType: error.type.name,
+        error: error.message,
+      );
+      return;
+    }
+    StripeDebug.apiError(
+      endpoint: endpoint,
+      exceptionType: error.runtimeType.toString(),
+      error: error is PassengerApiException ? error.code ?? error.message : null,
+    );
   }
 }

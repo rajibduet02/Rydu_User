@@ -10,12 +10,16 @@ import '../../../../app/router/route_names.dart';
 import '../../../../core/location/location_service.dart';
 import '../../../../core/maps/encoded_polyline_decoder.dart';
 import '../../../../core/network/passenger_api_error_mapper.dart';
+import '../../../../core/payments/rydu_payments.dart';
+import '../../../../core/payments/stripe_debug.dart';
 import '../../../payment/presentation/providers/payment_method_provider.dart';
+import '../../data/services/stripe_payment_gateway.dart';
 import '../../data/utils/ride_planning_parsers.dart';
 import '../../../../core/network/passenger_socket_service.dart';
 import '../../domain/constants/ride_booking_type_ids.dart';
 import '../../domain/entities/pickup_spot_entity.dart';
 import '../../domain/entities/ride_planning_entities.dart';
+import '../../domain/payments/payment_authorization_poller.dart';
 import '../../domain/recording_consent_status.dart';
 import '../models/ride_flow_extra.dart';
 import '../models/ride_vehicle_option.dart';
@@ -41,6 +45,7 @@ enum RidePlanningPhase {
   quoteLoading,
   quoteLoaded,
   bookingCreating,
+  paymentPending,
   bookingSearching,
   bookingOffered,
   driverAccepted,
@@ -84,8 +89,8 @@ class RideBookingState {
     this.selectedVehicle,
     this.estimatedFare,
     this.fareCurrency,
-    this.paymentMethod = '',
-    this.paymentMethodCode = '',
+    this.paymentMethod = CardBookingPayment.label,
+    this.paymentMethodCode = CardBookingPayment.code,
     this.paymentMethods = const [],
     this.selectedPickupSpotIndex = 0,
     this.pickupSpots = const [],
@@ -125,6 +130,11 @@ class RideBookingState {
     this.recordingConsentInfo,
     this.recordingConsentError,
     this.lastRecordingConsentChoice,
+    this.cardPaymentUiState = CardPaymentUiState.idle,
+    this.bookingPayment,
+    this.paymentClientSecret,
+    this.stripeReady = false,
+    this.isResolvingPayment = false,
   });
 
   final String selectedRideType;
@@ -182,6 +192,11 @@ class RideBookingState {
   final RecordingConsentInfo? recordingConsentInfo;
   final String? recordingConsentError;
   final bool? lastRecordingConsentChoice;
+  final CardPaymentUiState cardPaymentUiState;
+  final BookingPaymentEntity? bookingPayment;
+  final String? paymentClientSecret;
+  final bool stripeReady;
+  final bool isResolvingPayment;
 
   bool get hasSelectedVehicle =>
       selectedVehicleId != null && selectedVehicle != null;
@@ -240,6 +255,27 @@ class RideBookingState {
       phase == RidePlanningPhase.bookingSearching ||
       phase == RidePlanningPhase.bookingOffered;
 
+  bool get isPaymentPending => phase == RidePlanningPhase.paymentPending;
+
+  bool get showsCardPaymentPanel =>
+      isPaymentPending ||
+      cardPaymentUiState == CardPaymentUiState.preparing ||
+      cardPaymentUiState == CardPaymentUiState.presentingSheet ||
+      cardPaymentUiState == CardPaymentUiState.authorizing ||
+      cardPaymentUiState == CardPaymentUiState.failed ||
+      cardPaymentUiState == CardPaymentUiState.requiresAction;
+
+  bool get canRetryCardPayment {
+    if (!isPaymentPending &&
+        cardPaymentUiState != CardPaymentUiState.failed &&
+        cardPaymentUiState != CardPaymentUiState.requiresAction) {
+      return false;
+    }
+    final secret = paymentClientSecret?.trim() ?? '';
+    if (secret.isNotEmpty) return true;
+    return bookingPayment?.needsPayment == true;
+  }
+
   bool get isAssignedRidePhase =>
       phase == RidePlanningPhase.driverAccepted ||
       phase == RidePlanningPhase.driverEnRoute ||
@@ -256,7 +292,14 @@ class RideBookingState {
   bool get hasActiveBooking =>
       bookingId != null &&
       bookingId!.isNotEmpty &&
-      (isSearchingForDriver || isAssignedRidePhase);
+      (isSearchingForDriver || isAssignedRidePhase || isPaymentPending);
+
+  String get bookingPaymentLabel {
+    if (paymentMethod.isNotEmpty && !isCashPaymentLabel(paymentMethod)) {
+      return paymentMethod;
+    }
+    return CardBookingPayment.label;
+  }
 
   String get destinationLabel {
     if (selectedDestination != null && selectedDestination!.name.isNotEmpty) {
@@ -277,8 +320,45 @@ class RideBookingState {
     return 'Ride';
   }
 
+  String get cardPaymentStatusTitle {
+    return switch (cardPaymentUiState) {
+      CardPaymentUiState.preparing => 'Preparing payment',
+      CardPaymentUiState.presentingSheet => 'Complete payment',
+      CardPaymentUiState.authorizing => 'Authorizing payment',
+      CardPaymentUiState.failed => 'Payment failed',
+      CardPaymentUiState.requiresAction => 'Payment required',
+      CardPaymentUiState.authorized => 'Payment authorized',
+      CardPaymentUiState.idle => 'Payment required',
+    };
+  }
+
+  String get cardPaymentStatusSubtitle {
+    if (errorMessage != null && errorMessage!.trim().isNotEmpty) {
+      return errorMessage!;
+    }
+    return switch (cardPaymentUiState) {
+      CardPaymentUiState.preparing => 'Setting up secure card payment…',
+      CardPaymentUiState.presentingSheet => 'Enter your card in the secure Stripe sheet.',
+      CardPaymentUiState.authorizing => 'Confirming authorization with Rydu…',
+      CardPaymentUiState.failed => 'Your booking is saved. Retry payment or cancel the ride.',
+      CardPaymentUiState.requiresAction =>
+        'Complete payment to start finding a driver.',
+      CardPaymentUiState.authorized => 'Finding a driver…',
+      CardPaymentUiState.idle => 'Complete payment to start finding a driver.',
+    };
+  }
+
   String get activeRideStatusLabel {
     return switch (phase) {
+      RidePlanningPhase.paymentPending =>
+        cardPaymentUiState == CardPaymentUiState.failed
+            ? 'Payment failed'
+            : cardPaymentUiState == CardPaymentUiState.authorizing
+            ? 'Authorizing payment'
+            : cardPaymentUiState == CardPaymentUiState.preparing ||
+                  cardPaymentUiState == CardPaymentUiState.presentingSheet
+            ? 'Preparing payment'
+            : 'Payment required',
       RidePlanningPhase.bookingSearching ||
       RidePlanningPhase.bookingOffered => 'Finding a driver…',
       RidePlanningPhase.driverAccepted ||
@@ -294,7 +374,9 @@ class RideBookingState {
   bool get canCancelBooking =>
       bookingId != null &&
       !isCancelling &&
-      (isSearchingForDriver || phase == RidePlanningPhase.driverAccepted);
+      (isSearchingForDriver ||
+          isPaymentPending ||
+          phase == RidePlanningPhase.driverAccepted);
 
   /// Consent prompt only after acceptance, while still required.
   bool get shouldShowRecordingConsentPrompt =>
@@ -395,6 +477,13 @@ class RideBookingState {
     bool clearRecordingConsentError = false,
     bool? lastRecordingConsentChoice,
     bool clearLastRecordingConsentChoice = false,
+    CardPaymentUiState? cardPaymentUiState,
+    BookingPaymentEntity? bookingPayment,
+    bool clearBookingPayment = false,
+    String? paymentClientSecret,
+    bool clearPaymentClientSecret = false,
+    bool? stripeReady,
+    bool? isResolvingPayment,
   }) {
     return RideBookingState(
       selectedRideType: selectedRideType ?? this.selectedRideType,
@@ -489,12 +578,22 @@ class RideBookingState {
       lastRecordingConsentChoice: clearLastRecordingConsentChoice
           ? null
           : (lastRecordingConsentChoice ?? this.lastRecordingConsentChoice),
+      cardPaymentUiState: cardPaymentUiState ?? this.cardPaymentUiState,
+      bookingPayment: clearBookingPayment
+          ? null
+          : (bookingPayment ?? this.bookingPayment),
+      paymentClientSecret: clearPaymentClientSecret
+          ? null
+          : (paymentClientSecret ?? this.paymentClientSecret),
+      stripeReady: stripeReady ?? this.stripeReady,
+      isResolvingPayment: isResolvingPayment ?? this.isResolvingPayment,
     );
   }
 }
 
 RidePlanningPhase ridePhaseFromBookingStatus(String status) {
   return switch (status.toLowerCase()) {
+    'quoted' => RidePlanningPhase.paymentPending,
     'searching' ||
     'requested' ||
     'pending' ||
@@ -532,6 +631,7 @@ class RideBookingController extends Notifier<RideBookingState> {
   bool suppressPickupTextInvalidation = false;
   ActiveRideSocketStatus? _previousSocketStatus;
   bool _refreshingRecordingConsent = false;
+  bool _authorizingPayment = false;
 
   @override
   RideBookingState build() {
@@ -547,6 +647,16 @@ class RideBookingController extends Notifier<RideBookingState> {
   @visibleForTesting
   void debugSeedState(RideBookingState next) {
     state = next;
+  }
+
+  /// Test-only: country query sent to Places autocomplete.
+  @visibleForTesting
+  String? debugResolvedAutocompleteCountry() => _resolvedAutocompleteCountry();
+
+  /// Test-only: run autocomplete without the 400ms debounce.
+  @visibleForTesting
+  Future<void> debugRunAutocomplete(String input, ActiveSearchField field) {
+    return _runAutocomplete(input, field);
   }
 
   Future<void> _cancelSocketSubscriptions() async {
@@ -794,6 +904,22 @@ class RideBookingController extends Notifier<RideBookingState> {
     _previousPickupSource = source;
   }
 
+  /// Places autocomplete `country` from location truth only (never phone/locale).
+  ///
+  /// 1. Resolved pickup `countryCode`
+  /// 2. GPS reverse-geocode / previously selected pickup (stash), used when
+  ///    the user is retyping pickup and `pickupPlace` was cleared
+  /// 3. Omit if missing or not a 2-letter ISO code
+  String? _resolvedAutocompleteCountry() {
+    final fromPickup = RidePlanningParsers.normalizedCountryCode(
+      state.pickupPlace?.countryCode,
+    );
+    if (fromPickup != null) return fromPickup;
+    return RidePlanningParsers.normalizedCountryCode(
+      _previousResolvedPickup?.countryCode,
+    );
+  }
+
   Future<void> useCurrentLocation() async {
     if (kDebugMode) debugPrint('PickupCurrentLocation: selected');
     // Preserve destination; only reset pickup search UI.
@@ -899,10 +1025,8 @@ class RideBookingController extends Notifier<RideBookingState> {
       leaveOption: leaveOption,
       rentalVehicle: rentalVehicle,
       rentalPrice: rentalPrice,
-      paymentMethod: paymentMethod ?? state.paymentMethod,
-      paymentMethodCode: state.paymentMethodCode.isNotEmpty
-          ? state.paymentMethodCode
-          : 'cash',
+      paymentMethod: paymentMethod ?? state.bookingPaymentLabel,
+      paymentMethodCode: CardBookingPayment.code,
       isLoading: false,
       errorMessage: null,
       phase: alreadyResolved
@@ -932,10 +1056,16 @@ class RideBookingController extends Notifier<RideBookingState> {
     final vehicle = rideVehicleOptionFromExtra(extra['selectedVehicle']);
     final vehicleId = vehicle?.id ?? extra['selectedVehicleId'] as String?;
     final fare = extra['estimatedFare'] as String?;
-    final payment = RideFlowExtra.stringFrom(extra['paymentMethod'], 'Cash');
+    final payment = RideFlowExtra.stringFrom(
+      extra['paymentMethod'],
+      CardBookingPayment.label,
+    );
+    final paymentLabel = isCashPaymentLabel(payment)
+        ? CardBookingPayment.label
+        : payment;
     ref
         .read(paymentMethodControllerProvider.notifier)
-        .selectPaymentMethod(payment);
+        .selectPaymentMethod(paymentLabel);
     final spotIndex = extra['selectedPickupSpotIndex'] as int? ?? 0;
 
     state = state.copyWith(
@@ -946,7 +1076,8 @@ class RideBookingController extends Notifier<RideBookingState> {
       selectedVehicleId: vehicleId ?? vehicle?.id,
       selectedVehicle: vehicle,
       estimatedFare: fare ?? vehicle?.price,
-      paymentMethod: payment,
+      paymentMethod: paymentLabel,
+      paymentMethodCode: CardBookingPayment.code,
       selectedPickupSpotIndex: spotIndex,
       clearError: true,
     );
@@ -1043,11 +1174,12 @@ class RideBookingController extends Notifier<RideBookingState> {
     final cancelToken = CancelToken();
     _autocompleteCancelToken = cancelToken;
     _placesSessionToken ??= _uuid.v4();
+    final country = _resolvedAutocompleteCountry();
 
     if (kDebugMode) {
       debugPrint(
         'PassengerAutocomplete: start input="$input" field=${field.name} '
-        'requestId=$requestId',
+        'requestId=$requestId country=${country ?? '<none>'}',
       );
     }
 
@@ -1059,7 +1191,7 @@ class RideBookingController extends Notifier<RideBookingState> {
             input: input,
             lat: bias?.latitude,
             lng: bias?.longitude,
-            country: 'BD',
+            country: country,
             sessionToken: _placesSessionToken,
             cancelToken: cancelToken,
           );
@@ -1348,22 +1480,8 @@ class RideBookingController extends Notifier<RideBookingState> {
           .read(rideBookingRepositoryProvider)
           .paymentMethods();
       if (actionId != _routeQuoteActionId) return;
-
-      PaymentMethodEntity? defaultMethod;
-      for (final m in methods) {
-        if (m.isDefault) {
-          defaultMethod = m;
-          break;
-        }
-      }
-      defaultMethod ??= methods.isNotEmpty ? methods.first : null;
-      final paymentLabel = defaultMethod?.label ?? '';
-      final paymentCode = defaultMethod?.code ?? '';
-      if (paymentLabel.isNotEmpty) {
-        ref
-            .read(paymentMethodControllerProvider.notifier)
-            .selectPaymentMethod(paymentLabel);
-      }
+      unawaited(_loadPaymentConfigQuietly());
+      final payment = _cardPaymentSelection(methods);
 
       final promotionTitle = quote.quotes
           .map((q) => q.promotion?.displayTitle)
@@ -1383,9 +1501,9 @@ class RideBookingController extends Notifier<RideBookingState> {
             ? quote.route
             : route,
         polylinePoints: quotePoints,
-        paymentMethods: methods,
-        paymentMethod: paymentLabel,
-        paymentMethodCode: paymentCode,
+        paymentMethods: payment.methods,
+        paymentMethod: payment.label,
+        paymentMethodCode: payment.code,
         fareCurrency: quote.quotes.first.currency,
         promotionBanner: promotionTitle,
         clearPromotionBanner: promotionTitle == null,
@@ -1456,21 +1574,8 @@ class RideBookingController extends Notifier<RideBookingState> {
       final methods = await ref
           .read(rideBookingRepositoryProvider)
           .paymentMethods();
-      PaymentMethodEntity? defaultMethod;
-      for (final m in methods) {
-        if (m.isDefault) {
-          defaultMethod = m;
-          break;
-        }
-      }
-      defaultMethod ??= methods.isNotEmpty ? methods.first : null;
-      final paymentLabel = defaultMethod?.label ?? '';
-      final paymentCode = defaultMethod?.code ?? '';
-      if (paymentLabel.isNotEmpty) {
-        ref
-            .read(paymentMethodControllerProvider.notifier)
-            .selectPaymentMethod(paymentLabel);
-      }
+      unawaited(_loadPaymentConfigQuietly());
+      final payment = _cardPaymentSelection(methods);
 
       final promotion = quote.quotes
           .map((q) => q.promotion?.displayTitle)
@@ -1488,9 +1593,9 @@ class RideBookingController extends Notifier<RideBookingState> {
         rideOptions: options,
         routePreview: quote.route,
         polylinePoints: points,
-        paymentMethods: methods,
-        paymentMethod: paymentLabel,
-        paymentMethodCode: paymentCode,
+        paymentMethods: payment.methods,
+        paymentMethod: payment.label,
+        paymentMethodCode: payment.code,
         fareCurrency: options.isNotEmpty
             ? (quote.quotes.first.currency)
             : state.fareCurrency,
@@ -1586,19 +1691,26 @@ class RideBookingController extends Notifier<RideBookingState> {
   }
 
   void updatePaymentMethod(String method) {
+    var label = method.trim();
+    if (label.isEmpty || isCashPaymentLabel(label)) {
+      label = CardBookingPayment.label;
+    }
     ref
         .read(paymentMethodControllerProvider.notifier)
-        .selectPaymentMethod(method);
+        .selectPaymentMethod(label);
     PaymentMethodEntity? matched;
     for (final item in state.paymentMethods) {
-      if (item.label == method || item.code == method) {
+      if (item.label == label || item.code == label) {
         matched = item;
         break;
       }
     }
+    final code = isCardPaymentMethodCode(matched?.code)
+        ? matched!.code
+        : CardBookingPayment.code;
     state = state.copyWith(
-      paymentMethod: method,
-      paymentMethodCode: matched?.code ?? method.toLowerCase(),
+      paymentMethod: isCashPaymentLabel(matched?.label) ? label : (matched?.label ?? label),
+      paymentMethodCode: code,
       clearError: true,
       clearIdempotencyKey: true,
     );
@@ -1650,9 +1762,7 @@ class RideBookingController extends Notifier<RideBookingState> {
     }
     syncPaymentFromProvider();
     final vehicle = state.selectedVehicle!;
-    final payment = ref
-        .read(paymentMethodControllerProvider)
-        .selectedPaymentMethod;
+    final payment = state.bookingPaymentLabel;
     ref
         .read(goRouterProvider)
         .push(
@@ -1669,22 +1779,64 @@ class RideBookingController extends Notifier<RideBookingState> {
   }
 
   Future<void> confirmBooking() async {
+    StripeDebug.log('Confirm Ride tapped');
+    StripeDebug.log('selectedPaymentMethod=${state.paymentMethodCode}');
     if (!state.canConfirmBooking) {
+      StripeDebug.log('cardAvailable=unknown');
+      StripeDebug.log('bookingRequestWillBeSent=false');
+      StripeDebug.log('BOOKING BLOCKED');
+      StripeDebug.log('reason=Select a service to continue.');
       state = state.copyWith(errorMessage: 'Select a service to continue.');
       return;
     }
-    if (state.isCreatingBooking) return;
+    if (state.isCreatingBooking) {
+      StripeDebug.log('bookingRequestWillBeSent=false');
+      StripeDebug.log('BOOKING BLOCKED');
+      StripeDebug.log('reason=booking already in progress');
+      return;
+    }
+    if (state.isPaymentPending && state.bookingId != null) {
+      StripeDebug.log('bookingRequestWillBeSent=false');
+      StripeDebug.log('quoted booking detected -> checking Stripe payment status');
+      await retryCardPayment();
+      return;
+    }
 
     final key = state.idempotencyKey ?? _uuid.v4();
+    const paymentCode = CardBookingPayment.code;
+
     state = state.copyWith(
       isCreatingBooking: true,
       idempotencyKey: key,
       phase: RidePlanningPhase.bookingCreating,
+      paymentMethod: state.bookingPaymentLabel,
+      paymentMethodCode: paymentCode,
+      cardPaymentUiState: CardPaymentUiState.preparing,
       clearError: true,
     );
 
     try {
-      final booking = await ref
+      final usable = await _isStripeCardUsable();
+      StripeDebug.log('cardAvailable=$usable');
+      if (!usable) {
+        StripeDebug.log('bookingRequestWillBeSent=false');
+        StripeDebug.log('BOOKING BLOCKED');
+        StripeDebug.log(
+          'reason=${StripeDebug.lastUnavailableReason ?? CardBookingPayment.unavailableMessage}',
+        );
+        state = state.copyWith(
+          isCreatingBooking: false,
+          phase: RidePlanningPhase.quoteLoaded,
+          cardPaymentUiState: CardPaymentUiState.idle,
+          errorMessage: CardBookingPayment.unavailableMessage,
+        );
+        return;
+      }
+
+      StripeDebug.log('bookingRequestWillBeSent=true');
+      StripeDebug.log('paymentMethodCode=$paymentCode');
+
+      final result = await ref
           .read(rideBookingRepositoryProvider)
           .createBooking(
             serviceCategoryId: state.selectedVehicleId!,
@@ -1695,38 +1847,49 @@ class RideBookingController extends Notifier<RideBookingState> {
                   : state.pickupSpotLabel,
             ),
             dropoff: _waypointFromPlace(state.dropoffPlace!),
-            paymentMethodCode: state.paymentMethodCode,
+            paymentMethodCode: paymentCode,
             idempotencyKey: key,
           );
 
-      await _applyBookingEntity(booking, preserveRoute: true);
-      await _connectAndListen(booking.id);
+      await _applyBookingEntity(result.booking, preserveRoute: true);
+      _rememberPayment(result.payment);
+
+      if (_bookingNeedsCardAuthorization(result)) {
+        state = state.copyWith(
+          isCreatingBooking: false,
+          pickupConfirmed: true,
+          phase: RidePlanningPhase.paymentPending,
+          bookingStatus: result.booking.status,
+          clearCancelIdempotencyKey: true,
+          cardPaymentUiState: CardPaymentUiState.preparing,
+        );
+        await _authorizeCardPayment(
+          clientSecret: result.payment?.clientSecret,
+        );
+        return;
+      }
+
+      try {
+        await _connectAndListen(result.booking.id);
+      } catch (_) {
+        state = state.copyWith(
+          socketStatus: ActiveRideSocketStatus.disconnected,
+        );
+      }
 
       state = state.copyWith(
         isCreatingBooking: false,
         pickupConfirmed: true,
-        phase: _phaseFromBookingStatus(booking.status),
-        bookingStatus: booking.status,
+        phase: _phaseFromBookingStatus(result.booking.status),
+        bookingStatus: result.booking.status,
         searchStartedAt: DateTime.now(),
         clearCancelIdempotencyKey: true,
+        cardPaymentUiState: CardPaymentUiState.idle,
+        clearBookingPayment: true,
+        clearPaymentClientSecret: true,
       );
 
-      final vehicle = state.selectedVehicle!;
-      ref
-          .read(goRouterProvider)
-          .push(
-            RouteNames.findingDriver,
-            extra: RideFlowExtra.buildDriverFoundExtra(
-              selectedType: state.selectedRideType,
-              selectedVehicle: vehicle,
-              pickupLocation: state.pickupLocation,
-              destination: state.selectedDestination,
-              estimatedFare: state.estimatedFare ?? vehicle.price,
-              paymentMethod: state.paymentMethod,
-              pickupSpotName: state.pickupSpotLabel,
-              bookingId: booking.id,
-            ),
-          );
+      _navigateToFindingDriver(result.booking.id);
     } on PassengerApiException catch (e) {
       if (e.code == 'ACTIVE_BOOKING_EXISTS' ||
           e.message.toLowerCase().contains('active booking')) {
@@ -1740,20 +1903,25 @@ class RideBookingController extends Notifier<RideBookingState> {
                     : 'You already have an active booking.'),
           clearError: restored,
           phase: restored
-              ? RidePlanningPhase.bookingSearching
+              ? state.phase
               : RidePlanningPhase.error,
+          cardPaymentUiState: restored
+              ? state.cardPaymentUiState
+              : CardPaymentUiState.idle,
         );
         return;
       }
       state = state.copyWith(
         isCreatingBooking: false,
         phase: RidePlanningPhase.error,
+        cardPaymentUiState: CardPaymentUiState.idle,
         errorMessage: e.message,
       );
     } catch (e) {
       state = state.copyWith(
         isCreatingBooking: false,
         phase: RidePlanningPhase.error,
+        cardPaymentUiState: CardPaymentUiState.idle,
         errorMessage: e is PassengerApiException
             ? e.message
             : 'Could not create booking. Try again.',
@@ -1770,7 +1938,20 @@ class RideBookingController extends Notifier<RideBookingState> {
           .activeBooking();
       if (booking == null || !booking.isActive) return false;
 
+      StripeDebug.log('restore active booking');
+      StripeDebug.log('bookingId=${booking.id}');
+      StripeDebug.log('bookingStatus=${booking.status}');
+
       await _applyBookingEntity(booking, preserveRoute: false);
+
+      if (booking.status.toLowerCase() == 'quoted') {
+        StripeDebug.log(
+          'quoted booking detected -> checking Stripe payment status',
+        );
+        await _reconcileQuotedBookingPayment();
+        return true;
+      }
+
       try {
         await _connectAndListen(booking.id);
       } catch (_) {
@@ -1780,7 +1961,13 @@ class RideBookingController extends Notifier<RideBookingState> {
         );
       }
 
-      state = state.copyWith(pickupConfirmed: true, clearError: true);
+      state = state.copyWith(
+        pickupConfirmed: true,
+        clearError: true,
+        cardPaymentUiState: CardPaymentUiState.idle,
+        clearBookingPayment: true,
+        clearPaymentClientSecret: true,
+      );
       _ensureSearchStartedAt();
 
       if (navigate) {
@@ -1805,6 +1992,10 @@ class RideBookingController extends Notifier<RideBookingState> {
 
   /// Reopens Finding Driver / Driver Found for the current active booking.
   void resumeActiveRide({bool replace = false}) {
+    if (state.isPaymentPending) {
+      unawaited(retryCardPayment());
+      return;
+    }
     if (!state.hasActiveBooking &&
         state.phase != RidePlanningPhase.expired &&
         state.phase != RidePlanningPhase.noDrivers) {
@@ -1921,6 +2112,10 @@ class RideBookingController extends Notifier<RideBookingState> {
       clearRecordingConsentInfo: true,
       clearRecordingConsentError: true,
       clearLastRecordingConsentChoice: true,
+      cardPaymentUiState: CardPaymentUiState.idle,
+      clearBookingPayment: true,
+      clearPaymentClientSecret: true,
+      isResolvingPayment: false,
     );
   }
 
@@ -2344,6 +2539,9 @@ class RideBookingController extends Notifier<RideBookingState> {
   }
 
   void _navigateForActivePhase({bool replace = false}) {
+    if (state.isPaymentPending) {
+      return;
+    }
     final vehicle =
         state.selectedVehicle ??
         RideOptionEntity(
@@ -2437,7 +2635,527 @@ class RideBookingController extends Notifier<RideBookingState> {
       phase: RidePlanningPhase.initial,
       socketStatus: ActiveRideSocketStatus.idle,
       lastNavigatedPhaseKey: '',
+      cardPaymentUiState: CardPaymentUiState.idle,
+      clearBookingPayment: true,
+      clearPaymentClientSecret: true,
+      isResolvingPayment: false,
     );
+  }
+
+  ({List<PaymentMethodEntity> methods, String label, String code})
+  _cardPaymentSelection(List<PaymentMethodEntity> backend) {
+    final visible = CardBookingPayment.visibleForBooking(backend);
+    final selected = visible.first;
+    ref
+        .read(paymentMethodControllerProvider.notifier)
+        .selectPaymentMethod(selected.label);
+    StripeDebug.paymentMethodsParsed(
+      codes: backend.map((m) => m.code).toList(),
+      cardReturnedByBackend: CardBookingPayment.backendIncludesCard(backend),
+      selectedPaymentMethod: CardBookingPayment.code,
+    );
+    return (
+      methods: visible,
+      label: selected.label,
+      code: CardBookingPayment.code,
+    );
+  }
+
+  Future<bool> _isStripeCardUsable() async {
+    StripeDebug.resetAvailability();
+    final ready = await _loadPaymentConfigQuietly();
+    if (!ready) {
+      StripeDebug.dumpCardAvailability(finalCardAvailable: false);
+      return false;
+    }
+    try {
+      final methods = await ref
+          .read(rideBookingRepositoryProvider)
+          .paymentMethods();
+      final hasCard = CardBookingPayment.backendIncludesCard(methods);
+      StripeDebug.lastBackendReturnedCard = hasCard;
+      if (!hasCard) {
+        StripeDebug.lastUnavailableReason = 'card missing from payment-methods';
+      }
+      StripeDebug.dumpCardAvailability(finalCardAvailable: hasCard);
+      return hasCard;
+    } catch (e) {
+      StripeDebug.lastBackendReturnedCard = false;
+      StripeDebug.lastUnavailableReason = 'payment methods request failed';
+      StripeDebug.log(
+        'error=${StripeDebug.redactSecretsInText(e.toString())}',
+      );
+      StripeDebug.dumpCardAvailability(finalCardAvailable: false);
+      return false;
+    }
+  }
+
+  Future<bool> _loadPaymentConfigQuietly() async {
+    try {
+      final config = await ref
+          .read(rideBookingRepositoryProvider)
+          .paymentConfig();
+      final key = config.publishableKey?.trim() ?? '';
+      StripeDebug.lastStripeEnabled = config.stripeEnabled;
+      StripeDebug.lastCardEnabled = config.cardEnabled;
+      StripeDebug.lastPublishableKeyValid = key.startsWith('pk_');
+      if (!config.canInitializeStripe) {
+        state = state.copyWith(stripeReady: false);
+        StripeDebug.lastStripeSdkInitialized = false;
+        if (!config.cardEnabled) {
+          StripeDebug.lastUnavailableReason = 'cardEnabled=false';
+        } else if (key.isEmpty) {
+          StripeDebug.lastUnavailableReason = 'publishable key missing';
+        } else if (!key.startsWith('pk_')) {
+          StripeDebug.lastUnavailableReason = 'invalid pk_ prefix';
+        } else {
+          StripeDebug.lastUnavailableReason = 'canInitializeStripe=false';
+        }
+        return false;
+      }
+      final ready = await ref
+          .read(stripePaymentGatewayProvider)
+          .initialize(publishableKey: config.publishableKey!);
+      StripeDebug.lastStripeSdkInitialized = ready;
+      state = state.copyWith(stripeReady: ready);
+      if (!ready) {
+        StripeDebug.lastUnavailableReason = 'Stripe SDK initialization failed';
+      }
+      return ready;
+    } catch (e) {
+      StripeDebug.lastStripeSdkInitialized = false;
+      StripeDebug.lastUnavailableReason = 'config request failed';
+      StripeDebug.log('Stripe: payment config unavailable');
+      StripeDebug.log(
+        'error=${StripeDebug.redactSecretsInText(e.toString())}',
+      );
+      state = state.copyWith(stripeReady: false);
+      return false;
+    }
+  }
+
+  bool _bookingNeedsCardAuthorization(CreateBookingResult result) {
+    final booking = result.booking;
+    final payment = result.payment;
+    final isCard =
+        isCardPaymentMethodCode(booking.paymentMethodCode) ||
+        isCardPaymentMethodCode(state.paymentMethodCode) ||
+        (payment != null && payment.isCard);
+    if (!isCard) return false;
+    if (booking.status.toLowerCase() == 'quoted') return true;
+    if (payment != null && payment.needsPayment) return true;
+    return false;
+  }
+
+  void _rememberPayment(BookingPaymentEntity? payment) {
+    if (payment == null) {
+      state = state.copyWith(
+        clearBookingPayment: true,
+        clearPaymentClientSecret: true,
+      );
+      return;
+    }
+    state = state.copyWith(
+      bookingPayment: payment,
+      paymentClientSecret: payment.hasClientSecret
+          ? payment.clientSecret
+          : state.paymentClientSecret,
+      clearPaymentClientSecret:
+          !payment.hasClientSecret && payment.isAuthorized,
+    );
+  }
+
+  Future<void> retryCardPayment() async {
+    final bookingId = state.bookingId;
+    if (bookingId == null || bookingId.isEmpty) return;
+    if (_authorizingPayment) return;
+
+    state = state.copyWith(
+      isResolvingPayment: true,
+      cardPaymentUiState: CardPaymentUiState.preparing,
+      clearError: true,
+    );
+
+    try {
+      await _loadPaymentConfigQuietly();
+      final payment = await ref
+          .read(rideBookingRepositoryProvider)
+          .bookingPayment(bookingId);
+      _rememberPayment(payment);
+
+      if (payment.isAuthorized) {
+        StripeDebug.log('AUTHORIZED -> refresh booking');
+        await _refreshBookingAfterAuthorization();
+        return;
+      }
+      if (payment.isCancelled) {
+        StripeDebug.log('PAYMENT CANCELLED');
+        state = state.copyWith(
+          isResolvingPayment: false,
+          cardPaymentUiState: CardPaymentUiState.failed,
+          errorMessage: 'This payment was cancelled.',
+        );
+        return;
+      }
+      if (!payment.needsPayment && payment.isFailed) {
+        if (!payment.hasClientSecret &&
+            (state.paymentClientSecret == null ||
+                state.paymentClientSecret!.isEmpty)) {
+          StripeDebug.log('PAYMENT FAILED');
+          state = state.copyWith(
+            isResolvingPayment: false,
+            cardPaymentUiState: CardPaymentUiState.failed,
+            errorMessage: 'Payment failed. You can retry or cancel this ride.',
+          );
+          return;
+        }
+      }
+      if (!payment.hasClientSecret &&
+          (state.paymentClientSecret == null ||
+              state.paymentClientSecret!.isEmpty)) {
+        state = state.copyWith(
+          isResolvingPayment: false,
+          cardPaymentUiState: CardPaymentUiState.failed,
+          errorMessage: 'Payment is still required. Try again in a moment.',
+        );
+        return;
+      }
+
+      state = state.copyWith(
+        isResolvingPayment: false,
+        phase: RidePlanningPhase.paymentPending,
+      );
+      await _authorizeCardPayment(clientSecret: payment.clientSecret);
+    } on PassengerApiException catch (e) {
+      state = state.copyWith(
+        isResolvingPayment: false,
+        cardPaymentUiState: CardPaymentUiState.failed,
+        errorMessage: e.message,
+      );
+    } catch (_) {
+      state = state.copyWith(
+        isResolvingPayment: false,
+        cardPaymentUiState: CardPaymentUiState.failed,
+        errorMessage: 'Could not load payment. Try again.',
+      );
+    }
+  }
+
+  Future<void> _authorizeCardPayment({String? clientSecret}) async {
+    final bookingId = state.bookingId;
+    if (bookingId == null || bookingId.isEmpty) return;
+    if (_authorizingPayment) return;
+    _authorizingPayment = true;
+
+    var secret = (clientSecret ?? state.paymentClientSecret)?.trim() ?? '';
+    try {
+      if (secret.isEmpty) {
+        final payment = await ref
+            .read(rideBookingRepositoryProvider)
+            .bookingPayment(bookingId);
+        _rememberPayment(payment);
+        secret = payment.clientSecret?.trim() ?? '';
+      }
+      if (secret.isEmpty) {
+        state = state.copyWith(
+          phase: RidePlanningPhase.paymentPending,
+          cardPaymentUiState: CardPaymentUiState.failed,
+          errorMessage: 'Payment is still required. Try again.',
+        );
+        return;
+      }
+
+      if (!state.stripeReady) {
+        final ready = await _loadPaymentConfigQuietly();
+        if (!ready) {
+          StripeDebug.lastUnavailableReason ??=
+              'Stripe SDK initialization failed';
+          StripeDebug.dumpCardAvailability(finalCardAvailable: false);
+          state = state.copyWith(
+            phase: RidePlanningPhase.paymentPending,
+            cardPaymentUiState: CardPaymentUiState.failed,
+            errorMessage: CardBookingPayment.unavailableMessage,
+          );
+          return;
+        }
+      }
+
+      state = state.copyWith(
+        phase: RidePlanningPhase.paymentPending,
+        cardPaymentUiState: CardPaymentUiState.presentingSheet,
+        paymentClientSecret: secret,
+        clearError: true,
+      );
+
+      final outcome = await ref
+          .read(stripePaymentGatewayProvider)
+          .presentPaymentSheet(
+            clientSecret: secret,
+            merchantDisplayName: RyduPayments.merchantDisplayName,
+          );
+
+      if (outcome == StripeSheetOutcome.canceled) {
+        state = state.copyWith(
+          phase: RidePlanningPhase.paymentPending,
+          cardPaymentUiState: CardPaymentUiState.requiresAction,
+          errorMessage: 'Payment was cancelled. Retry when you are ready.',
+        );
+        return;
+      }
+      if (outcome == StripeSheetOutcome.failed) {
+        state = state.copyWith(
+          phase: RidePlanningPhase.paymentPending,
+          cardPaymentUiState: CardPaymentUiState.failed,
+          errorMessage: 'Payment failed. You can retry or cancel this ride.',
+        );
+        return;
+      }
+
+      state = state.copyWith(
+        phase: RidePlanningPhase.paymentPending,
+        cardPaymentUiState: CardPaymentUiState.authorizing,
+        clearError: true,
+      );
+
+      final polled = await _pollPaymentUntilTerminal(bookingId);
+      if (polled == null) {
+        state = state.copyWith(
+          phase: RidePlanningPhase.paymentPending,
+          cardPaymentUiState: CardPaymentUiState.requiresAction,
+          errorMessage:
+              'Payment is still being confirmed. Retry in a moment.',
+        );
+        return;
+      }
+
+      _rememberPayment(polled);
+
+      if (polled.isAuthorized) {
+        StripeDebug.log('AUTHORIZED -> refresh booking');
+        await _refreshBookingAfterAuthorization();
+        return;
+      }
+      if (polled.requiresAction || polled.needsPayment) {
+        state = state.copyWith(
+          phase: RidePlanningPhase.paymentPending,
+          cardPaymentUiState: CardPaymentUiState.requiresAction,
+          errorMessage: 'Additional authentication is required. Retry payment.',
+        );
+        return;
+      }
+      if (polled.isCancelled) {
+        StripeDebug.log('PAYMENT CANCELLED');
+        state = state.copyWith(
+          phase: RidePlanningPhase.paymentPending,
+          cardPaymentUiState: CardPaymentUiState.failed,
+          errorMessage: 'This payment was cancelled.',
+        );
+        return;
+      }
+      StripeDebug.log('PAYMENT FAILED');
+      state = state.copyWith(
+        phase: RidePlanningPhase.paymentPending,
+        cardPaymentUiState: CardPaymentUiState.failed,
+        errorMessage: 'Payment failed. You can retry or cancel this ride.',
+      );
+    } catch (e) {
+      state = state.copyWith(
+        phase: RidePlanningPhase.paymentPending,
+        cardPaymentUiState: CardPaymentUiState.failed,
+        errorMessage: e is PassengerApiException
+            ? e.message
+            : 'Payment could not be completed. Try again.',
+      );
+    } finally {
+      _authorizingPayment = false;
+    }
+  }
+
+  Future<BookingPaymentEntity?> _pollPaymentUntilTerminal(
+    String bookingId,
+  ) async {
+    final delay = ref.read(paymentPollDelayProvider);
+    final started = DateTime.now();
+    BookingPaymentEntity? latest;
+    for (var i = 0; i < PaymentAuthorizationPoller.intervals.length; i++) {
+      final wait = PaymentAuthorizationPoller.intervals[i];
+      if (wait > Duration.zero) {
+        await delay(wait);
+      }
+      if (DateTime.now().difference(started) >
+          PaymentAuthorizationPoller.timeout) {
+        break;
+      }
+      StripeDebug.pollAttempt = i + 1;
+      try {
+        latest = await ref
+            .read(rideBookingRepositoryProvider)
+            .bookingPayment(bookingId);
+        _rememberPayment(latest);
+        if (latest.isTerminal) {
+          if (latest.isAuthorized) {
+            StripeDebug.log('AUTHORIZED -> refresh booking');
+          } else if (latest.isCancelled) {
+            StripeDebug.log('PAYMENT CANCELLED');
+          } else if (latest.isFailed) {
+            StripeDebug.log('PAYMENT FAILED');
+          }
+          return latest;
+        }
+      } catch (e) {
+        StripeDebug.log('payment poll retry');
+        StripeDebug.log(
+          'error=${StripeDebug.redactSecretsInText(e.toString())}',
+        );
+      } finally {
+        StripeDebug.pollAttempt = null;
+      }
+    }
+    return latest;
+  }
+
+  Future<void> _refreshBookingAfterAuthorization() async {
+    final bookingId = state.bookingId;
+    if (bookingId == null) return;
+    StripeDebug.log('refreshing active booking');
+    try {
+      final repo = ref.read(rideBookingRepositoryProvider);
+      BookingEntity? booking = await repo.bookingById(bookingId);
+      booking ??= await repo.activeBooking();
+      if (booking == null) {
+        StripeDebug.log('bookingStatus=missing');
+        state = state.copyWith(
+          cardPaymentUiState: CardPaymentUiState.authorized,
+          errorMessage: 'Payment authorized. Waiting for dispatch.',
+        );
+        return;
+      }
+      StripeDebug.log('bookingStatus=${booking.status}');
+      if (booking.status.toLowerCase() == 'quoted') {
+        StripeDebug.log(
+          'WARNING: payment authorized but booking still quoted',
+        );
+      }
+      await _applyBookingEntity(booking, preserveRoute: true);
+      final phase = _phaseFromBookingStatus(booking.status);
+      if (phase == RidePlanningPhase.bookingSearching ||
+          phase == RidePlanningPhase.bookingOffered ||
+          phase == RidePlanningPhase.driverAccepted ||
+          phase == RidePlanningPhase.driverEnRoute ||
+          phase == RidePlanningPhase.driverArrived ||
+          phase == RidePlanningPhase.rideInProgress) {
+        state = state.copyWith(
+          cardPaymentUiState: CardPaymentUiState.authorized,
+          clearPaymentClientSecret: true,
+          clearError: true,
+        );
+        try {
+          await _connectAndListen(booking.id);
+        } catch (_) {
+          state = state.copyWith(
+            socketStatus: ActiveRideSocketStatus.disconnected,
+          );
+        }
+        _ensureSearchStartedAt();
+        _navigateToFindingDriver(booking.id);
+        return;
+      }
+
+      state = state.copyWith(
+        phase: RidePlanningPhase.paymentPending,
+        cardPaymentUiState: CardPaymentUiState.authorized,
+        errorMessage: 'Payment authorized. Waiting for dispatch.',
+      );
+    } catch (_) {
+      state = state.copyWith(
+        phase: RidePlanningPhase.paymentPending,
+        cardPaymentUiState: CardPaymentUiState.authorized,
+        errorMessage: 'Payment authorized. Waiting for dispatch.',
+      );
+    }
+  }
+
+  Future<void> _reconcileQuotedBookingPayment() async {
+    final bookingId = state.bookingId;
+    if (bookingId == null) return;
+
+    state = state.copyWith(
+      pickupConfirmed: true,
+      phase: RidePlanningPhase.paymentPending,
+      cardPaymentUiState: CardPaymentUiState.preparing,
+      clearError: true,
+    );
+
+    unawaited(_loadPaymentConfigQuietly());
+
+    try {
+      final payment = await ref
+          .read(rideBookingRepositoryProvider)
+          .bookingPayment(bookingId);
+      _rememberPayment(payment);
+
+      if (payment.isAuthorized) {
+        StripeDebug.log('AUTHORIZED -> refresh booking');
+        await _refreshBookingAfterAuthorization();
+        return;
+      }
+      if (payment.isCancelled) {
+        StripeDebug.log('PAYMENT CANCELLED');
+        state = state.copyWith(
+          cardPaymentUiState: CardPaymentUiState.failed,
+          errorMessage: 'This payment was cancelled.',
+        );
+        return;
+      }
+      if (payment.isFailed) {
+        StripeDebug.log('PAYMENT FAILED');
+        state = state.copyWith(
+          cardPaymentUiState: CardPaymentUiState.failed,
+          errorMessage: 'Payment failed. You can retry or cancel this ride.',
+        );
+        return;
+      }
+
+      state = state.copyWith(
+        phase: RidePlanningPhase.paymentPending,
+        cardPaymentUiState: payment.requiresAction
+            ? CardPaymentUiState.requiresAction
+            : CardPaymentUiState.requiresAction,
+        errorMessage: payment.requiresAction
+            ? 'Additional authentication is required. Retry payment.'
+            : null,
+        clearError: !payment.requiresAction,
+      );
+    } catch (_) {
+      state = state.copyWith(
+        phase: RidePlanningPhase.paymentPending,
+        cardPaymentUiState: CardPaymentUiState.requiresAction,
+        errorMessage: 'Complete payment to find a driver.',
+      );
+    }
+  }
+
+  void _navigateToFindingDriver(String bookingId) {
+    final vehicle = state.selectedVehicle;
+    if (vehicle == null) {
+      _navigateForActivePhase();
+      return;
+    }
+    ref
+        .read(goRouterProvider)
+        .push(
+          RouteNames.findingDriver,
+          extra: RideFlowExtra.buildDriverFoundExtra(
+            selectedType: state.selectedRideType,
+            selectedVehicle: vehicle,
+            pickupLocation: state.pickupLocation,
+            destination: state.selectedDestination,
+            estimatedFare: state.estimatedFare ?? vehicle.price,
+            paymentMethod: state.paymentMethod,
+            pickupSpotName: state.pickupSpotLabel,
+            bookingId: bookingId,
+          ),
+        );
   }
 
   LatLngWaypoint _waypointFromPlace(PlaceEntity place, {String? spotLabel}) {

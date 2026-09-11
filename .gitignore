@@ -44,4 +44,7 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-/lib/react_code/ 
+/lib/react_code/
+
+# iOS Maps SDK key (never commit)
+ios/Flutter/MapsSecrets.xcconfig

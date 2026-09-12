@@ -13,6 +13,8 @@ import '../providers/ride_booking_provider.dart';
 import '../theme/ride_booking_tokens.dart';
 import '../widgets/card_payment_status_panel.dart';
 import '../widgets/payment_method_tile.dart';
+import '../widgets/airport_fare_breakdown.dart';
+import '../models/airport_fare_presentation.dart';
 import '../widgets/ride_option_card.dart';
 
 class RideSelectionScreen extends ConsumerStatefulWidget {
@@ -156,6 +158,9 @@ class _RideSelectionScreenState extends ConsumerState<RideSelectionScreen> {
     }
 
     final selectedName = state.selectedVehicle?.name ?? 'Ride';
+    final airportFare = state.selectedVehicle == null
+        ? null
+        : AirportFarePresentation.fromOption(state.selectedVehicle!);
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     final pickup = state.pickupPlace;
     final dropoff = state.dropoffPlace;
@@ -457,6 +462,10 @@ class _RideSelectionScreenState extends ConsumerState<RideSelectionScreen> {
                       ),
                       const SizedBox(height: 16),
                     ] else ...[
+                      if (airportFare != null) ...[
+                        AirportFareBreakdown(data: airportFare),
+                        const SizedBox(height: 16),
+                      ],
                       PaymentMethodTile(
                         method: state.bookingPaymentLabel,
                         onTap: () async {

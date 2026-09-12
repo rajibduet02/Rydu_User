@@ -199,20 +199,47 @@ abstract final class RidePlanningParsers {
     );
   }
 
-  static ServiceQuoteEntity? serviceQuote(dynamic raw) {
+  static ServiceQuoteEntity? serviceQuote(
+    dynamic raw, {
+    AirportQuoteEntity? defaultAirport,
+    double? defaultAirportFee,
+    double? defaultRegularFare,
+  }) {
     if (raw is! Map) return null;
     final map = Map<String, dynamic>.from(raw);
     final id = asNonEmptyString(
       map['serviceCategoryId'] ?? map['id'] ?? map['serviceId'],
     );
     if (id == null) return null;
-    final currency = asNonEmptyString(map['currency']) ?? 'BDT';
-    final finalFare = asDouble(map['finalFare'] ?? map['fare'] ?? map['price']);
+    final fareNested = asMap(map['fare']);
+    final currency =
+        asNonEmptyString(map['currency'] ?? fareNested?['currency']) ?? 'BDT';
+    final finalFare =
+        asDouble(map['finalFare']) ??
+        asDouble(map['price']) ??
+        asDouble(fareNested?['amount'] ?? fareNested?['finalFare']) ??
+        (map['fare'] is Map ? null : asDouble(map['fare']));
     if (finalFare == null) return null;
     final original =
         asDouble(map['originalFare']) ??
         finalFare + (asDouble(map['discountAmount']) ?? 0);
     final discount = asDouble(map['discountAmount']) ?? (original - finalFare);
+    final airportFee =
+        asDouble(
+          map['airportFee'] ??
+              map['airport_fee'] ??
+              fareNested?['airportFee'] ??
+              fareNested?['airport_fee'],
+        ) ??
+        defaultAirportFee ??
+        0;
+    final regularFare = asDouble(
+      map['regularFare'] ??
+          map['regular_fare'] ??
+          fareNested?['regularFare'] ??
+          fareNested?['regular_fare'],
+    ) ??
+        defaultRegularFare;
     return ServiceQuoteEntity(
       serviceCategoryId: id,
       serviceCode: asNonEmptyString(map['serviceCode'] ?? map['code']) ?? id,
@@ -229,6 +256,32 @@ abstract final class RidePlanningParsers {
       finalFare: finalFare,
       currency: currency,
       promotion: promotion(map['promotion'] ?? map['promotionText']),
+      regularFare: regularFare,
+      airportFee: airportFee < 0 ? 0 : airportFee,
+      airport: airportInfo(map['airport'] ?? fareNested?['airport']) ??
+          defaultAirport,
+    );
+  }
+
+  static AirportQuoteEntity? airportInfo(dynamic raw) {
+    if (raw is! Map) return null;
+    final map = Map<String, dynamic>.from(raw);
+    final id = asNonEmptyString(map['id'] ?? map['airportId']);
+    final code = asNonEmptyString(
+      map['code'] ?? map['airportCode'] ?? map['iata'],
+    );
+    final name = asNonEmptyString(map['name'] ?? map['airportName']);
+    final tripType = asNonEmptyString(
+      map['tripType'] ?? map['type'] ?? map['airportTripType'],
+    );
+    if (id == null && code == null && name == null && tripType == null) {
+      return null;
+    }
+    return AirportQuoteEntity(
+      id: id,
+      code: code,
+      name: name,
+      tripType: tripType,
     );
   }
 
@@ -237,11 +290,32 @@ abstract final class RidePlanningParsers {
     final map = Map<String, dynamic>.from(raw);
     final route = routePreview(map['route'] ?? map);
     if (route == null) return null;
+    final envelopeFare = asMap(map['fare']);
+    final envelopeAirport = airportInfo(
+      map['airport'] ?? envelopeFare?['airport'],
+    );
+    final envelopeFee = asDouble(
+      map['airportFee'] ??
+          map['airport_fee'] ??
+          envelopeFare?['airportFee'] ??
+          envelopeFare?['airport_fee'],
+    );
+    final envelopeRegular = asDouble(
+      map['regularFare'] ??
+          map['regular_fare'] ??
+          envelopeFare?['regularFare'] ??
+          envelopeFare?['regular_fare'],
+    );
     final quotesRaw = map['quotes'] ?? map['services'] ?? map['options'];
     final quotes = <ServiceQuoteEntity>[];
     if (quotesRaw is List) {
       for (final item in quotesRaw) {
-        final quote = serviceQuote(item);
+        final quote = serviceQuote(
+          item,
+          defaultAirport: envelopeAirport,
+          defaultAirportFee: envelopeFee,
+          defaultRegularFare: envelopeRegular,
+        );
         if (quote != null) quotes.add(quote);
       }
     }
@@ -588,6 +662,15 @@ abstract final class RidePlanningParsers {
       discountAmount: asDouble(
         fareMap?['discountAmount'] ?? map['discountAmount'],
       ),
+      regularFare: asDouble(
+        fareMap?['regularFare'] ??
+            fareMap?['regular_fare'] ??
+            map['regularFare'],
+      ),
+      airportFee: asDouble(
+        fareMap?['airportFee'] ?? fareMap?['airport_fee'] ?? map['airportFee'],
+      ),
+      airport: airportInfo(fareMap?['airport'] ?? map['airport']),
       driver: assignedDriver(map['driver'] ?? map['assignedDriver']),
       vehicle: bookingVehicle(map['vehicle']),
       encodedPolyline: encoded,

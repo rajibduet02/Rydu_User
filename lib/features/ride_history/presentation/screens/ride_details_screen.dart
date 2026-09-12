@@ -5,6 +5,7 @@ import '../../../../app/router/app_router.dart';
 import '../../../../app/router/route_names.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../ride_booking/domain/entities/ride_planning_entities.dart';
+import '../../../ride_booking/presentation/models/airport_fare_presentation.dart';
 import '../../../ride_booking/presentation/providers/ride_booking_provider.dart';
 import '../providers/ride_history_provider.dart';
 import '../ride_history_presentation.dart';
@@ -183,7 +184,31 @@ class _ReadOnlyRideDetail extends StatelessWidget {
       ('Destination', RideHistoryPresentation.dropoffLabel(booking)),
       if (RideHistoryPresentation.serviceLabel(booking) != null)
         ('Service', RideHistoryPresentation.serviceLabel(booking)!),
-      if (booking.formattedFare != null) ('Fare', booking.formattedFare!),
+      if (booking.formattedFare != null && !booking.hasAirportSurcharge)
+        ('Fare', booking.formattedFare!),
+      if (booking.hasAirportSurcharge) ...[
+        (
+          AirportFarePresentation.tripFareLabel,
+          AirportFarePresentation.money(
+            booking.currency,
+            booking.displayTripFare,
+          ),
+        ),
+        (
+          AirportFarePresentation.feeLabel(booking.airport),
+          AirportFarePresentation.money(
+            booking.currency,
+            booking.airportFee ?? 0,
+          ),
+        ),
+        (
+          AirportFarePresentation.totalLabel,
+          AirportFarePresentation.money(
+            booking.currency,
+            booking.finalFare ?? 0,
+          ),
+        ),
+      ],
       if (booking.paymentMethodName != null || booking.paymentMethodCode != null)
         (
           'Payment',

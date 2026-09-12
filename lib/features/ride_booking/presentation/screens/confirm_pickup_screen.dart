@@ -9,6 +9,8 @@ import '../models/ride_flow_extra.dart';
 import '../../../payment/presentation/widgets/payment_method_sheet.dart';
 import '../providers/ride_booking_provider.dart';
 import '../theme/ride_booking_tokens.dart';
+import '../widgets/airport_fare_breakdown.dart';
+import '../models/airport_fare_presentation.dart';
 import '../widgets/card_payment_status_panel.dart';
 import '../widgets/payment_method_tile.dart';
 import '../widgets/pickup_location_card.dart';
@@ -43,6 +45,9 @@ class _ConfirmPickupScreenState extends ConsumerState<ConfirmPickupScreen> {
     final vehicle = state.selectedVehicle;
     final dest = state.selectedDestination?.name;
     final spots = state.pickupSpots;
+    final airportFare = vehicle == null
+        ? null
+        : AirportFarePresentation.fromOption(vehicle);
 
     return Scaffold(
       backgroundColor: RideBookingTokens.background,
@@ -179,7 +184,9 @@ class _ConfirmPickupScreenState extends ConsumerState<ConfirmPickupScreen> {
                         children: [
                           if (vehicle != null)
                             Text(
-                              '${vehicle.name} · ${state.estimatedFare ?? vehicle.price}',
+                              airportFare == null
+                                  ? '${vehicle.name} · ${state.estimatedFare ?? vehicle.price}'
+                                  : vehicle.name,
                               style: const TextStyle(
                                 color: RideBookingTokens.titleWhite,
                                 fontWeight: FontWeight.w600,
@@ -194,6 +201,10 @@ class _ConfirmPickupScreenState extends ConsumerState<ConfirmPickupScreen> {
                                 fontSize: 13,
                               ),
                             ),
+                          ],
+                          if (airportFare != null) ...[
+                            const SizedBox(height: 12),
+                            AirportFareBreakdown(data: airportFare),
                           ],
                         ],
                       ),

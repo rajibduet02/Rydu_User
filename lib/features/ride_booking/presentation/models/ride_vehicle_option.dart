@@ -24,6 +24,9 @@ extension RideVehicleOptionPresentation on RideOptionEntity {
     'discountAmount': discountAmount,
     'driverEtaMinutes': driverEtaMinutes,
     'promotion': promotion,
+    'regularFare': regularFare,
+    'airportFee': airportFee,
+    'airport': airport?.toJson(),
   };
 }
 
@@ -52,6 +55,31 @@ RideOptionEntity? rideVehicleOptionFromExtra(Object? raw) {
     discountAmount: (m['discountAmount'] as num?)?.toDouble(),
     driverEtaMinutes: m['driverEtaMinutes'] as int?,
     promotion: m['promotion'] as String?,
+    regularFare: (m['regularFare'] as num?)?.toDouble(),
+    airportFee: (m['airportFee'] as num?)?.toDouble(),
+    airport: airportQuoteFromExtra(m['airport']),
+  );
+}
+
+AirportQuoteEntity? airportQuoteFromExtra(Object? raw) {
+  if (raw is AirportQuoteEntity) return raw;
+  if (raw is! Map) return null;
+  final m = Map<String, dynamic>.from(raw);
+  final id = m['id'] as String?;
+  final code = m['code'] as String?;
+  final name = m['name'] as String?;
+  final tripType = m['tripType'] as String?;
+  if ((id == null || id.isEmpty) &&
+      (code == null || code.isEmpty) &&
+      (name == null || name.isEmpty) &&
+      (tripType == null || tripType.isEmpty)) {
+    return null;
+  }
+  return AirportQuoteEntity(
+    id: id,
+    code: code,
+    name: name,
+    tripType: tripType,
   );
 }
 
@@ -81,6 +109,9 @@ RideOptionEntity rideOptionFromQuote(
     discountAmount: quote.discountAmount,
     driverEtaMinutes: quote.driverEtaMinutes,
     promotion: quote.promotion?.displayTitle,
+    regularFare: quote.regularFare ?? quote.displayTripFare,
+    airportFee: quote.airportFee,
+    airport: quote.airport,
   );
 }
 

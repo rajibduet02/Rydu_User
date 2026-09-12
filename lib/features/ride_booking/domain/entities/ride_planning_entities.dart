@@ -127,6 +127,29 @@ class PromotionEntity {
   }
 }
 
+/// Backend airport classification on a quote/booking. Never inferred in Flutter.
+class AirportQuoteEntity {
+  const AirportQuoteEntity({
+    this.id,
+    this.code,
+    this.name,
+    this.tripType,
+  });
+
+  final String? id;
+  final String? code;
+  final String? name;
+  /// Backend value (`pickup` / `dropoff`). Format for UI; do not show raw.
+  final String? tripType;
+
+  Map<String, dynamic> toJson() => {
+    if (id != null && id!.isNotEmpty) 'id': id,
+    if (code != null && code!.isNotEmpty) 'code': code,
+    if (name != null && name!.isNotEmpty) 'name': name,
+    if (tripType != null && tripType!.isNotEmpty) 'tripType': tripType,
+  };
+}
+
 class ServiceQuoteEntity {
   const ServiceQuoteEntity({
     required this.serviceCategoryId,
@@ -143,6 +166,9 @@ class ServiceQuoteEntity {
     this.iconKey,
     this.driverEtaMinutes,
     this.promotion,
+    this.regularFare,
+    this.airportFee = 0,
+    this.airport,
   });
 
   final String serviceCategoryId;
@@ -159,8 +185,24 @@ class ServiceQuoteEntity {
   final double finalFare;
   final String currency;
   final PromotionEntity? promotion;
+  /// Trip fare excluding airport surcharge. Backend field when present.
+  final double? regularFare;
+  final double airportFee;
+  final AirportQuoteEntity? airport;
 
   bool get hasDiscount => discountAmount > 0 && originalFare > finalFare;
+
+  bool get hasAirportSurcharge => airportFee > 0;
+
+  /// Trip-fare line. Backend [regularFare] wins; otherwise total minus fee.
+  double get displayTripFare {
+    if (regularFare != null) return regularFare!;
+    if (airportFee > 0) {
+      final remainder = finalFare - airportFee;
+      return remainder < 0 ? finalFare : remainder;
+    }
+    return finalFare;
+  }
 }
 
 class BookingQuoteEntity {
@@ -286,6 +328,9 @@ class BookingEntity {
     this.finalFare,
     this.estimatedAmount,
     this.discountAmount,
+    this.regularFare,
+    this.airportFee,
+    this.airport,
     this.driver,
     this.vehicle,
     this.encodedPolyline,
@@ -323,6 +368,9 @@ class BookingEntity {
   final double? finalFare;
   final double? estimatedAmount;
   final double? discountAmount;
+  final double? regularFare;
+  final double? airportFee;
+  final AirportQuoteEntity? airport;
   final AssignedDriverEntity? driver;
   final BookingVehicleEntity? vehicle;
   final String? encodedPolyline;
@@ -353,6 +401,18 @@ class BookingEntity {
     if (finalFare == null) return null;
     final c = currency ?? 'BDT';
     return '$c ${finalFare!.toStringAsFixed(2)}';
+  }
+
+  bool get hasAirportSurcharge => (airportFee ?? 0) > 0;
+
+  double get displayTripFare {
+    if (regularFare != null) return regularFare!;
+    final fee = airportFee ?? 0;
+    if (finalFare != null && fee > 0) {
+      final remainder = finalFare! - fee;
+      return remainder < 0 ? finalFare! : remainder;
+    }
+    return finalFare ?? 0;
   }
 }
 

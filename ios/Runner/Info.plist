@@ -4,29 +4,6 @@
 <dict>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>RYD U needs access to your photos so you can set a profile picture.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>RYD U needs your location to set your pickup point and show nearby rides.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>RYD U needs your location during an active trip to keep your pickup accurate.</string>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsArbitraryLoads</key>
-		<false/>
-		<key>NSExceptionDomains</key>
-		<dict>
-			<key>103.208.181.253</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<true/>
-				<key>NSIncludesSubdomains</key>
-				<true/>
-			</dict>
-		</dict>
-	</dict>
-	<key>GMSApiKey</key>
-	<string>$(GOOGLE_MAPS_IOS_API_KEY)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -47,8 +24,33 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>GMSApiKey</key>
+	<string>$(GOOGLE_MAPS_IOS_API_KEY)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<false/>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>103.208.181.253</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+			</dict>
+		</dict>
+	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>This app needs camera access to capture photos for check-in.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>RYD U needs your location during an active trip to keep your pickup accurate.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>RYD U needs your location to set your pickup point and show nearby rides.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>RYD U needs access to your photos so you can set a profile picture.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

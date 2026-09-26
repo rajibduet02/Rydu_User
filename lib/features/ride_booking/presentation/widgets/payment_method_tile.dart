@@ -22,9 +22,9 @@ class PaymentMethodTile extends StatelessWidget {
         child: Ink(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: RideBookingTokens.cardFill,
+            color: const Color(0xFFF8FAFC),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: RideBookingTokens.border),
+            border: Border.all(color: RideBookingTokens.sheetBorder),
           ),
           child: Row(
             children: [
@@ -46,7 +46,7 @@ class PaymentMethodTile extends StatelessWidget {
               Text(
                 method,
                 style: const TextStyle(
-                  color: RideBookingTokens.titleWhite,
+                  color: RideBookingTokens.sheetTitle,
                   fontWeight: FontWeight.w600,
                   fontSize: 16,
                 ),
@@ -54,7 +54,7 @@ class PaymentMethodTile extends StatelessWidget {
               const Spacer(),
               const Icon(
                 Icons.chevron_right_rounded,
-                color: RideBookingTokens.muted,
+                color: RideBookingTokens.sheetMuted,
               ),
             ],
           ),

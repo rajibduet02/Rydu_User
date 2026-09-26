@@ -100,7 +100,7 @@ RideOptionEntity rideOptionFromQuote(
     description: quote.description ?? quote.serviceCode,
     price: money(quote.finalFare),
     originalPrice: quote.hasDiscount ? money(quote.originalFare) : null,
-    iconEmoji: _iconFor(quote.iconKey ?? quote.serviceCode),
+    iconEmoji: serviceCategoryIconEmoji(quote.iconKey ?? quote.serviceCode),
     discount: quote.hasDiscount,
     serviceCode: quote.serviceCode,
     currency: quote.currency,
@@ -115,7 +115,22 @@ RideOptionEntity rideOptionFromQuote(
   );
 }
 
-String _iconFor(String key) {
+/// Display emoji for a service [iconKey] or [serviceCode]. Not used for booking.
+String serviceCategoryIconEmoji(String key) {
+  switch (key.toLowerCase().trim()) {
+    case 'economy':
+      return '🚘';
+    case 'executive':
+      return '✨';
+    case 'suv':
+      return '🚙';
+    case 'van':
+      return '🚐';
+    case 'minivan':
+      return '🚕';
+    case 'ada':
+      return '♿';
+  }
   final lower = key.toLowerCase();
   if (lower.contains('bike') || lower.contains('moto')) return '🏍️';
   if (lower.contains('cng')) return '⚡';

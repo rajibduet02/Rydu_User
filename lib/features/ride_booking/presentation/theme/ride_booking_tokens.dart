@@ -4,6 +4,12 @@ import 'package:rydu_user/app/theme/app_colors.dart';
 /// Visual tokens aligned with React `RideBookingScreen` / design screenshot.
 abstract final class RideBookingTokens {
   static const background = AppDarkSurfaces.scaffold;
+  /// Light ride-selection bottom sheet (maps stay dark above).
+  static const sheetBackground = Color(0xFFFFFFFF);
+  static const sheetBorder = Color(0xFFE5E7EB);
+  static const sheetTitle = Color(0xFF111827);
+  static const sheetMuted = Color(0xFF6B7280);
+  static const sheetCta = Color(0xFF111827);
   static const cardFill = AppDarkSurfaces.surface;
   static const border = AppDarkSurfaces.border;
   static const accent = AppBrand.primary;

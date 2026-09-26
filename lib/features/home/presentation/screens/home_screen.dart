@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/router/shell_scroll_padding.dart';
 import '../../../push/presentation/passenger_push_controller.dart';
+import '../../../ride_booking/domain/constants/passenger_service_categories.dart';
+import '../../../ride_booking/presentation/models/ride_vehicle_option.dart';
 import '../../../ride_booking/presentation/providers/ride_booking_provider.dart';
 import '../providers/home_controller.dart';
 import '../theme/home_screen_tokens.dart';
@@ -70,6 +72,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final w = MediaQuery.sizeOf(context).width;
     final hPad = (w * 0.06).clamp(20.0, 24.0);
     final sectionGap = (w * 0.045).clamp(18.0, 24.0);
+    final categoryGap = (w * 0.025).clamp(8.0, 12.0);
+    // Match the prior 4-up Expanded card width so six categories do not shrink tiles.
+    final categoryCardWidth = ((w - 2 * hPad - 3 * categoryGap) / 4).clamp(
+      72.0,
+      120.0,
+    );
     final categories =
         <
           ({
@@ -80,27 +88,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             bool bookable,
           })
         >[
-          (
-            id: HomeCategoryIds.ride,
-            label: 'Ride',
-            emoji: '🚗',
-            discount: '25% OFF',
-            bookable: true,
-          ),
-          (
-            id: HomeCategoryIds.bike,
-            label: 'Bike',
-            emoji: '🏍️',
-            discount: '30% OFF',
-            bookable: true,
-          ),
-          (
-            id: HomeCategoryIds.cng,
-            label: 'CNG',
-            emoji: '⚡',
-            discount: '20% OFF',
-            bookable: true,
-          ),
+          for (final item in PassengerServiceCategories.current)
+            (
+              id: item.code,
+              label: item.displayName,
+              emoji: serviceCategoryIconEmoji(item.iconKey),
+              discount: null,
+              bookable: true,
+            ),
           (
             id: HomeCategoryIds.rentals,
             label: 'Rentals',
@@ -149,29 +144,33 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             const SizedBox(height: 22),
             _ForYouHeader(onArrowTap: c.openOffers),
             SizedBox(height: (w * 0.035).clamp(12.0, 16.0)),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (var i = 0; i < categories.length; i++) ...[
-                  if (i > 0) SizedBox(width: (w * 0.025).clamp(8.0, 12.0)),
-                  Expanded(
+            SizedBox(
+              height: (w * 0.28).clamp(100.0, 118.0),
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: categories.length,
+                separatorBuilder: (_, _) => SizedBox(width: categoryGap),
+                itemBuilder: (context, i) {
+                  final item = categories[i];
+                  return SizedBox(
+                    width: categoryCardWidth,
                     child: RideCategoryCard(
-                      label: categories[i].label,
-                      emoji: categories[i].emoji,
-                      discountLabel: categories[i].discount,
-                      isSelected: s.selectedCategory == categories[i].id,
-                      bookable: categories[i].bookable,
+                      label: item.label,
+                      emoji: item.emoji,
+                      discountLabel: item.discount,
+                      isSelected: s.selectedCategory == item.id,
+                      bookable: item.bookable,
                       onTap: () {
-                        if (categories[i].id == HomeCategoryIds.rentals) {
+                        if (item.id == HomeCategoryIds.rentals) {
                           c.openRentals();
-                        } else if (categories[i].bookable) {
-                          c.openRideBooking(categories[i].id);
+                        } else if (item.bookable) {
+                          c.openRideBooking(item.id);
                         }
                       },
                     ),
-                  ),
-                ],
-              ],
+                  );
+                },
+              ),
             ),
             SizedBox(height: sectionGap),
             _SectionTitle('Commute smarter'),
@@ -181,11 +180,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               children: [
                 Expanded(
                   child: HomePromoCard(
-                    title: 'Go with RYD U CNG',
+                    title: 'Go with RYD U Economy',
                     subtitle: 'Eco-friendly rides',
                     style: HomePromoStyle.green,
-                    backgroundEmoji: '⚡',
-                    onTap: c.selectPromoCng,
+                    backgroundEmoji: '🚘',
+                    onTap: c.selectPromoEconomy,
                   ),
                 ),
                 SizedBox(width: (w * 0.025).clamp(10.0, 14.0)),
@@ -194,7 +193,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     title: 'Hop on RYD U',
                     subtitle: 'Move through',
                     style: HomePromoStyle.dark,
-                    backgroundEmoji: '🏍️',
+                    backgroundEmoji: '🚘',
                     onTap: c.selectPromoHopOn,
                   ),
                 ),
@@ -208,21 +207,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               children: [
                 Expanded(
                   child: HomePromoCard(
-                    title: 'Premium',
+                    title: 'Executive',
                     subtitle: 'Luxury experience',
                     style: HomePromoStyle.blue,
-                    backgroundEmoji: '🚗',
-                    onTap: c.selectPromoPremium,
+                    backgroundEmoji: '✨',
+                    onTap: c.selectPromoExecutive,
                   ),
                 ),
                 SizedBox(width: (w * 0.025).clamp(10.0, 14.0)),
                 Expanded(
                   child: HomePromoCard(
-                    title: 'Comfort',
-                    subtitle: 'Affordable luxury',
+                    title: 'SUV',
+                    subtitle: 'Room for six',
                     style: HomePromoStyle.darkOutlined,
                     backgroundEmoji: '🚙',
-                    onTap: c.selectPromoComfort,
+                    onTap: c.selectPromoSuv,
                   ),
                 ),
               ],

@@ -1,7 +1,19 @@
 import 'package:flutter/material.dart';
 
 import '../models/rental_vehicle.dart';
-import '../theme/rental_ride_tokens.dart';
+
+/// Light rental vehicle cards on the dark rental selection sheet.
+abstract final class RentalVehicleLightTokens {
+  static const cardBg = Color(0xFFFFFFFF);
+  static const cardBgSelected = Color(0xFFF4FBF7);
+  static const title = Color(0xFF111827);
+  static const muted = Color(0xFF6B7280);
+  static const selectedBorder = Color(0xFF0F6B4C);
+  static const divider = Color(0xFFE5E7EB);
+  static const iconWell = Color(0xFFF3F4F6);
+  static const bolt = Color(0xFF0F6B4C);
+  static const radius = 16.0;
+}
 
 class RentalVehicleCard extends StatelessWidget {
   const RentalVehicleCard({
@@ -15,7 +27,7 @@ class RentalVehicleCard extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
-  static String _bdt(double v) => 'BDT${v.toStringAsFixed(2)}';
+  static String _bdt(double v) => 'BDT ${v.toStringAsFixed(2)}';
 
   @override
   Widget build(BuildContext context) {
@@ -28,31 +40,20 @@ class RentalVehicleCard extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(RentalRideTokens.cardRadius),
+        borderRadius: BorderRadius.circular(RentalVehicleLightTokens.radius),
         child: Ink(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: selected
-                ? RentalRideTokens.cardSelected
-                : RentalRideTokens.cardUnselected,
-            borderRadius: BorderRadius.circular(RentalRideTokens.cardRadius),
+                ? RentalVehicleLightTokens.cardBgSelected
+                : RentalVehicleLightTokens.cardBg,
+            borderRadius: BorderRadius.circular(RentalVehicleLightTokens.radius),
             border: Border.all(
               color: selected
-                  ? RentalRideTokens.borderSelected
-                  : RentalRideTokens.border,
-              width: selected ? 2 : 1,
+                  ? RentalVehicleLightTokens.selectedBorder
+                  : RentalVehicleLightTokens.divider,
+              width: selected ? 2.5 : 1,
             ),
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                      color: RentalRideTokens.borderSelected.withValues(
-                        alpha: 0.18,
-                      ),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                : null,
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -61,7 +62,7 @@ class RentalVehicleCard extends StatelessWidget {
                 width: (w * 0.14).clamp(52.0, 56.0),
                 height: (w * 0.14).clamp(52.0, 56.0),
                 decoration: BoxDecoration(
-                  color: RentalRideTokens.iconWell,
+                  color: RentalVehicleLightTokens.iconWell,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 alignment: Alignment.center,
@@ -78,24 +79,25 @@ class RentalVehicleCard extends StatelessWidget {
                     Text(
                       vehicle.name,
                       style: TextStyle(
-                        color: RentalRideTokens.white,
+                        color: RentalVehicleLightTokens.title,
                         fontSize: titleSize,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       vehicle.eta,
                       style: TextStyle(
-                        color: RentalRideTokens.muted,
+                        color: RentalVehicleLightTokens.muted,
                         fontSize: subSize,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       '${vehicle.includedKm} kilometers included',
                       style: TextStyle(
-                        color: RentalRideTokens.muted,
+                        color: RentalVehicleLightTokens.muted,
                         fontSize: subSize - 1,
                       ),
                     ),
@@ -110,19 +112,19 @@ class RentalVehicleCard extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (vehicle.showDiscountBolt) ...[
-                        Icon(
+                        const Icon(
                           Icons.bolt_rounded,
                           size: 14,
-                          color: RentalRideTokens.bolt,
+                          color: RentalVehicleLightTokens.bolt,
                         ),
                         const SizedBox(width: 2),
                       ],
                       Text(
                         _bdt(vehicle.price),
                         style: TextStyle(
-                          color: RentalRideTokens.white,
+                          color: RentalVehicleLightTokens.title,
                           fontSize: priceSize,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ],
@@ -131,10 +133,10 @@ class RentalVehicleCard extends StatelessWidget {
                   Text(
                     '${_bdt(vehicle.oldPrice)}/hour',
                     style: TextStyle(
-                      color: RentalRideTokens.muted,
+                      color: RentalVehicleLightTokens.muted,
                       fontSize: subSize - 1.5,
                       decoration: TextDecoration.lineThrough,
-                      decorationColor: RentalRideTokens.muted,
+                      decorationColor: RentalVehicleLightTokens.muted,
                     ),
                   ),
                 ],

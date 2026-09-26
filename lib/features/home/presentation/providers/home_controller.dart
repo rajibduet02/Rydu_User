@@ -5,14 +5,19 @@ import '../../../../app/router/route_names.dart';
 import '../../../ride_booking/presentation/models/ride_booking_route_args.dart';
 import 'home_dependencies.dart';
 
-/// Canonical category / tier ids stored in [HomeState.selectedCategory].
+/// Canonical category / product ids stored in [HomeState.selectedCategory].
+///
+/// Instant-ride ids are backend service codes (not UUIDs). The quote response
+/// remains authoritative for booking [serviceCategoryId].
 abstract final class HomeCategoryIds {
   static const ride = 'Ride';
-  static const bike = 'Bike';
-  static const cng = 'CNG';
+  static const economy = 'ECONOMY';
+  static const executive = 'EXECUTIVE';
+  static const suv = 'SUV';
+  static const van = 'VAN';
+  static const minivan = 'MINIVAN';
+  static const ada = 'ADA';
   static const rentals = 'Rentals';
-  static const premium = 'Premium';
-  static const comfort = 'Comfort';
 }
 
 class HomeState {
@@ -86,7 +91,7 @@ class HomeController extends Notifier<HomeState> {
     state = state.copyWith(selectedCategory: category, clearError: true);
   }
 
-  /// Opens plan-your-ride flow with the given tier (Ride, Bike, CNG, Premium, …).
+  /// Opens plan-your-ride. [selectedType] is a presentation hint (code or Ride).
   void openRideBooking(String selectedType) {
     state = state.copyWith(selectedCategory: selectedType, clearError: true);
     ref
@@ -150,24 +155,24 @@ class HomeController extends Notifier<HomeState> {
     }
   }
 
-  /// Green “Go with RYD U CNG” promo.
-  void selectPromoCng() {
-    openRideBooking(HomeCategoryIds.cng);
+  /// Green eco promo → Economy presentation hint.
+  void selectPromoEconomy() {
+    openRideBooking(HomeCategoryIds.economy);
   }
 
-  /// Dark “Hop on RYD U” promo (matches React: Bike).
+  /// Dark “Hop on RYD U” promo → Economy presentation hint.
   void selectPromoHopOn() {
-    openRideBooking(HomeCategoryIds.bike);
+    openRideBooking(HomeCategoryIds.economy);
   }
 
-  /// Blue “Premium” promo (React used Ride for premium tier).
-  void selectPromoPremium() {
-    openRideBooking(HomeCategoryIds.premium);
+  /// Blue luxury promo → Executive presentation hint.
+  void selectPromoExecutive() {
+    openRideBooking(HomeCategoryIds.executive);
   }
 
-  /// Dark “Comfort” promo.
-  void selectPromoComfort() {
-    openRideBooking(HomeCategoryIds.comfort);
+  /// Dark spacious promo → SUV presentation hint.
+  void selectPromoSuv() {
+    openRideBooking(HomeCategoryIds.suv);
   }
 }
 

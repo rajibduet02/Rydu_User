@@ -28,9 +28,9 @@ class CardPaymentStatusPanel extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: RideBookingTokens.cardFill,
+        color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: RideBookingTokens.border),
+        border: Border.all(color: RideBookingTokens.sheetBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -38,7 +38,7 @@ class CardPaymentStatusPanel extends StatelessWidget {
           Text(
             state.cardPaymentStatusTitle,
             style: const TextStyle(
-              color: RideBookingTokens.titleWhite,
+              color: RideBookingTokens.sheetTitle,
               fontWeight: FontWeight.w700,
               fontSize: 16,
             ),
@@ -47,7 +47,7 @@ class CardPaymentStatusPanel extends StatelessWidget {
           Text(
             state.cardPaymentStatusSubtitle,
             style: const TextStyle(
-              color: RideBookingTokens.muted,
+              color: RideBookingTokens.sheetMuted,
               fontSize: 13,
             ),
           ),
@@ -70,8 +70,8 @@ class CardPaymentStatusPanel extends StatelessWidget {
                     ? onRetry
                     : null,
                 style: FilledButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: Colors.black,
+                  backgroundColor: RideBookingTokens.sheetCta,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
@@ -97,7 +97,7 @@ class CardPaymentStatusPanel extends StatelessWidget {
                     : const Text(
                         'Cancel ride',
                         style: TextStyle(
-                          color: RideBookingTokens.muted,
+                          color: RideBookingTokens.sheetMuted,
                           fontWeight: FontWeight.w600,
                         ),
                       ),

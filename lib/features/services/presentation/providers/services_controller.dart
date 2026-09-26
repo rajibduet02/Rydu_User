@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/router/app_router.dart';
 import '../../../../app/router/route_names.dart';
+import '../../../ride_booking/domain/constants/passenger_service_categories.dart';
 import '../../../ride_booking/presentation/models/ride_booking_route_args.dart';
 
 export '../../domain/constants/service_ids.dart';
@@ -60,14 +61,6 @@ class ServicesController extends Notifier<ServicesState> {
     final router = ref.read(goRouterProvider);
     try {
       switch (service) {
-        case ServiceIds.ride:
-        case ServiceIds.bike:
-        case ServiceIds.cng:
-          await router.push(
-            RouteNames.rideBooking,
-            extra: RideBookingRouteArgs(selectedType: service),
-          );
-          break;
         case ServiceIds.intercity:
           await router.push(RouteNames.intercity);
           break;
@@ -78,6 +71,12 @@ class ServicesController extends Notifier<ServicesState> {
           await router.push(RouteNames.rentals);
           break;
         default:
+          if (PassengerServiceCategories.isCurrentRideCode(service)) {
+            await router.push(
+              RouteNames.rideBooking,
+              extra: RideBookingRouteArgs(selectedType: service),
+            );
+          }
           break;
       }
     } catch (_) {

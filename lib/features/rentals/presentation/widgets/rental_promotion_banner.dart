@@ -35,7 +35,7 @@ class RentalPromotionBanner extends StatelessWidget {
             child: Text(
               'BDT ${promotionAmount.toStringAsFixed(2)} promotion applied',
               style: TextStyle(
-                color: RentalRideTokens.white,
+                color: RentalRideTokens.sheetTitle,
                 fontSize: fontSize,
                 fontWeight: FontWeight.w600,
               ),

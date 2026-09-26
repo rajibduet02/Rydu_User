@@ -341,7 +341,7 @@ class _RideSelectionScreenState extends ConsumerState<RideSelectionScreen> {
                     offset: const Offset(0, -32),
                     child: Container(
                       decoration: const BoxDecoration(
-                        color: RideBookingTokens.background,
+                        color: RideBookingTokens.sheetBackground,
                         borderRadius: BorderRadius.vertical(
                           top: Radius.circular(32),
                         ),
@@ -358,7 +358,7 @@ class _RideSelectionScreenState extends ConsumerState<RideSelectionScreen> {
                                           'No ride services available for this route.',
                                       textAlign: TextAlign.center,
                                       style: const TextStyle(
-                                        color: RideBookingTokens.muted,
+                                        color: RideBookingTokens.sheetMuted,
                                       ),
                                     ),
                                     const SizedBox(height: 12),
@@ -395,24 +395,24 @@ class _RideSelectionScreenState extends ConsumerState<RideSelectionScreen> {
                                       false) ...[
                                     Padding(
                                       padding: const EdgeInsets.fromLTRB(
-                                        8,
+                                        4,
                                         0,
-                                        8,
+                                        4,
                                         12,
                                       ),
                                       child: Text(
                                         _categoryTitle(category),
                                         style: const TextStyle(
-                                          color: RideBookingTokens.muted,
+                                          color: RideBookingTokens.sheetTitle,
                                           fontWeight: FontWeight.w600,
-                                          fontSize: 14,
+                                          fontSize: 16,
                                         ),
                                       ),
                                     ),
                                     for (final option in grouped[category]!)
                                       Padding(
                                         padding: const EdgeInsets.only(
-                                          bottom: 8,
+                                          bottom: 10,
                                         ),
                                         child: RideOptionCard(
                                           option: option,
@@ -440,9 +440,9 @@ class _RideSelectionScreenState extends ConsumerState<RideSelectionScreen> {
               child: Container(
                 padding: EdgeInsets.fromLTRB(24, 16, 24, 16 + bottomInset),
                 decoration: const BoxDecoration(
-                  color: RideBookingTokens.background,
+                  color: RideBookingTokens.sheetBackground,
                   border: Border(
-                    top: BorderSide(color: RideBookingTokens.border),
+                    top: BorderSide(color: RideBookingTokens.sheetBorder),
                   ),
                 ),
                 child: Column(
@@ -487,11 +487,10 @@ class _RideSelectionScreenState extends ConsumerState<RideSelectionScreen> {
                             ? c.continueToConfirmPickup
                             : null,
                         style: FilledButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: Colors.black,
-                          disabledBackgroundColor:
-                              AppDarkSurfaces.surfaceContainerLow,
-                          disabledForegroundColor: RideBookingTokens.muted,
+                          backgroundColor: RideBookingTokens.sheetCta,
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor: const Color(0xFFE5E7EB),
+                          disabledForegroundColor: RideBookingTokens.sheetMuted,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(20),
@@ -503,7 +502,7 @@ class _RideSelectionScreenState extends ConsumerState<RideSelectionScreen> {
                                 height: 22,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  color: Colors.black,
+                                  color: Colors.white,
                                 ),
                               )
                             : Text(

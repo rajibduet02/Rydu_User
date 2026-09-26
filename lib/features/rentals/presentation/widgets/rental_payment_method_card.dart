@@ -25,9 +25,9 @@ class RentalPaymentMethodCard extends StatelessWidget {
         child: Ink(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: RentalRideTokens.cardSelected,
+            color: const Color(0xFFF8FAFC),
             borderRadius: BorderRadius.circular(RentalRideTokens.cardRadius),
-            border: Border.all(color: RentalRideTokens.border),
+            border: Border.all(color: RentalRideTokens.sheetBorder),
           ),
           child: Row(
             children: [
@@ -50,7 +50,7 @@ class RentalPaymentMethodCard extends StatelessWidget {
                 child: Text(
                   label,
                   style: TextStyle(
-                    color: RentalRideTokens.white,
+                    color: RentalRideTokens.sheetTitle,
                     fontSize: fontSize,
                     fontWeight: FontWeight.w600,
                   ),
@@ -58,7 +58,7 @@ class RentalPaymentMethodCard extends StatelessWidget {
               ),
               Icon(
                 Icons.chevron_right_rounded,
-                color: RentalRideTokens.muted,
+                color: RentalRideTokens.sheetMuted,
                 size: (w * 0.06).clamp(22.0, 26.0),
               ),
             ],

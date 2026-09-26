@@ -29,7 +29,7 @@ Fare enters the app from the backend only.
 User-visible price before booking:
 
 1. **Ride selection** — each `RideOptionCard` shows total; bottom bar is payment + Choose. **This is the primary confirmation surface** (`continueToConfirmPickup` often calls `confirmBooking()` directly).
-2. **Confirm pickup** — fallback path; showed `vehicle · estimatedFare`.
+2. **Confirm pickup** — fallback pa                                                                   `th; showed `vehicle · estimatedFare`.
 3. Finding-driver / driver-found / home active card — total string only.
 4. Ride history list — total. Detail — single `Fare` row.
 

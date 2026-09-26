@@ -4,6 +4,12 @@ import 'package:rydu_user/app/theme/app_colors.dart';
 /// Rental ride selection — matches React / screenshot tokens.
 abstract final class RentalRideTokens {
   static const background = AppDarkSurfaces.scaffold;
+  /// Light rental selection sheet background.
+  static const sheetBackground = Color(0xFFFFFFFF);
+  static const sheetBorder = Color(0xFFE5E7EB);
+  static const sheetTitle = Color(0xFF111827);
+  static const sheetMuted = Color(0xFF6B7280);
+  static const sheetCta = Color(0xFF111827);
   static const cardSelected = AppDarkSurfaces.surface;
   static const cardUnselected = AppDarkSurfaces.surfaceContainerLow;
   static const iconWell = AppDarkSurfaces.inputSurface;

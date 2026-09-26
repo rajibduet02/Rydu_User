@@ -72,13 +72,14 @@ class RideCategoryCard extends StatelessWidget {
                       SizedBox(height: (w * 0.015).clamp(4.0, 8.0)),
                       Text(
                         label,
-                        maxLines: 1,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: HomeScreenTokens.white,
                           fontSize: labelSize,
                           fontWeight: FontWeight.w600,
+                          height: 1.15,
                         ),
                       ),
                     ],

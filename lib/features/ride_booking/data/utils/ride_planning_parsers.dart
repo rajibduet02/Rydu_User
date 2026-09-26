@@ -244,7 +244,10 @@ abstract final class RidePlanningParsers {
       serviceCategoryId: id,
       serviceCode: asNonEmptyString(map['serviceCode'] ?? map['code']) ?? id,
       serviceName:
-          asNonEmptyString(map['serviceName'] ?? map['name']) ?? 'Ride',
+          asNonEmptyString(
+            map['displayName'] ?? map['serviceName'] ?? map['name'],
+          ) ??
+          'Ride',
       description: asNonEmptyString(map['description']),
       iconKey: asNonEmptyString(map['iconKey'] ?? map['icon']),
       capacity: asInt(map['capacity']) ?? 4,

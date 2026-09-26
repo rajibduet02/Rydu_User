@@ -15,9 +15,9 @@ class AirportFareBreakdown extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
-        color: RideBookingTokens.cardFill,
+        color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: RideBookingTokens.border),
+        border: Border.all(color: RideBookingTokens.sheetBorder),
       ),
       child: Column(
         children: [
@@ -26,7 +26,7 @@ class AirportFareBreakdown extends StatelessWidget {
           _row(data.airportFeeLabel, data.airportFeeAmount, emphasized: false),
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 10),
-            child: Divider(height: 1, color: RideBookingTokens.border),
+            child: Divider(height: 1, color: RideBookingTokens.sheetBorder),
           ),
           _row(data.totalLabel, data.totalAmount, emphasized: true),
         ],
@@ -43,8 +43,8 @@ class AirportFareBreakdown extends StatelessWidget {
             label,
             style: TextStyle(
               color: emphasized
-                  ? RideBookingTokens.titleWhite
-                  : RideBookingTokens.muted,
+                  ? RideBookingTokens.sheetTitle
+                  : RideBookingTokens.sheetMuted,
               fontWeight: emphasized ? FontWeight.w700 : FontWeight.w500,
               fontSize: emphasized ? 15 : 13,
             ),
@@ -54,7 +54,7 @@ class AirportFareBreakdown extends StatelessWidget {
         Text(
           amount,
           style: TextStyle(
-            color: RideBookingTokens.titleWhite,
+            color: RideBookingTokens.sheetTitle,
             fontWeight: emphasized ? FontWeight.w700 : FontWeight.w600,
             fontSize: emphasized ? 15 : 13,
           ),

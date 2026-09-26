@@ -60,7 +60,7 @@ class _RentalRideSelectionScreenState
     final selected = s.selectedVehicle;
 
     return Scaffold(
-      backgroundColor: RentalRideTokens.background,
+      backgroundColor: RentalRideTokens.sheetBackground,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -79,12 +79,14 @@ class _RentalRideSelectionScreenState
                         height: RentalRideTokens.backSize,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: RentalRideTokens.cardSelected,
-                          border: Border.all(color: RentalRideTokens.border),
+                          color: const Color(0xFFF3F4F6),
+                          border: Border.all(
+                            color: RentalRideTokens.sheetBorder,
+                          ),
                         ),
                         child: const Icon(
                           Icons.chevron_left_rounded,
-                          color: RentalRideTokens.white,
+                          color: RentalRideTokens.sheetTitle,
                           size: 28,
                         ),
                       ),
@@ -96,7 +98,7 @@ class _RentalRideSelectionScreenState
                   Text(
                     "Rides we think you'll like",
                     style: TextStyle(
-                      color: RentalRideTokens.white,
+                      color: RentalRideTokens.sheetTitle,
                       fontSize: (w * 0.045).clamp(17.0, 18.0),
                       fontWeight: FontWeight.w600,
                     ),
@@ -104,7 +106,7 @@ class _RentalRideSelectionScreenState
                   const SizedBox(height: 14),
                   ...s.rentalVehicles.map(
                     (v) => Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.only(bottom: 10),
                       child: RentalVehicleCard(
                         vehicle: v,
                         selected: v.id == s.selectedVehicleId,
@@ -127,9 +129,12 @@ class _RentalRideSelectionScreenState
             ),
             Container(
               decoration: const BoxDecoration(
-                color: RentalRideTokens.background,
+                color: RentalRideTokens.sheetBackground,
                 border: Border(
-                  top: BorderSide(color: RentalRideTokens.border, width: 1),
+                  top: BorderSide(
+                    color: RentalRideTokens.sheetBorder,
+                    width: 1,
+                  ),
                 ),
               ),
               padding: EdgeInsets.fromLTRB(hPad, 16, hPad, 16 + bottom),
@@ -147,10 +152,11 @@ class _RentalRideSelectionScreenState
                         ? null
                         : c.chooseSelectedVehicle,
                     style: FilledButton.styleFrom(
-                      backgroundColor: RentalRideTokens.white,
-                      foregroundColor: RentalRideTokens.black,
-                      elevation: 4,
-                      shadowColor: Colors.black54,
+                      backgroundColor: RentalRideTokens.sheetCta,
+                      foregroundColor: RentalRideTokens.white,
+                      disabledBackgroundColor: const Color(0xFFE5E7EB),
+                      disabledForegroundColor: RentalRideTokens.sheetMuted,
+                      elevation: 0,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(

@@ -96,13 +96,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
               discount: null,
               bookable: true,
             ),
-          (
-            id: HomeCategoryIds.rentals,
-            label: 'Rentals',
-            emoji: '🚙',
-            discount: null,
-            bookable: false,
-          ),
         ];
 
     return SafeArea(
@@ -161,9 +154,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       isSelected: s.selectedCategory == item.id,
                       bookable: item.bookable,
                       onTap: () {
-                        if (item.id == HomeCategoryIds.rentals) {
-                          c.openRentals();
-                        } else if (item.bookable) {
+                        if (item.bookable) {
                           c.openRideBooking(item.id);
                         }
                       },

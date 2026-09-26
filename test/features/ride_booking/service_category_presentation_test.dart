@@ -308,7 +308,7 @@ void main() {
     expect(HomeCategoryIds.ride, 'Ride');
   });
 
-  test('services catalog shows the six ride categories and keeps products', () {
+  test('services catalog shows six ride categories without Rentals', () {
     final labels =
         ServicesLocalDatasourceImpl().getCatalog().map((e) => e.label).toList();
     expect(labels, containsAll([
@@ -320,10 +320,25 @@ void main() {
       'ADA Accessible',
       'Intercity',
       'Reserve',
-      'Rentals',
     ]));
+    expect(labels, isNot(contains('Rentals')));
     expect(labels, isNot(contains('Bike')));
     expect(labels, isNot(contains('CNG')));
     expect(labels, isNot(contains('Bus')));
+  });
+
+  test('home category presentation includes exactly six backend categories', () {
+    final names =
+        PassengerServiceCategories.current.map((e) => e.displayName).toList();
+    expect(names, [
+      'Economy Sedan',
+      'Executive Sedan',
+      'SUV',
+      'Passenger Van',
+      'Mini-Van',
+      'ADA Accessible',
+    ]);
+    expect(names, isNot(contains('Rentals')));
+    expect(names.length, 6);
   });
 }

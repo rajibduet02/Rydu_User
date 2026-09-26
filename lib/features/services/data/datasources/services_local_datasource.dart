@@ -43,13 +43,8 @@ class ServicesLocalDatasourceImpl implements ServicesLocalDatasource {
         iconAccentArgb: 0xFF4D7DFF,
         dimmed: true,
       ),
-      const ServiceCatalogEntryModel(
-        id: ServiceIds.rentals,
-        label: 'Rentals',
-        emoji: '🔑',
-        iconAccentArgb: 0xFF2F6BFF,
-        dimmed: true,
-      ),
+      // Rentals intentionally omitted from this catalog UI.
+      // Feature routes/screens remain; Rentals is not a backend service category.
     ];
   }
 }

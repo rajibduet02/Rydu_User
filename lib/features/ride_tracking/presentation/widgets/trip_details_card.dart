@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
 
-import '../../../ride_booking/presentation/models/suggested_location.dart';
 import '../../../ride_booking/presentation/theme/ride_booking_tokens.dart';
 
 class TripDetailsCard extends StatelessWidget {
   const TripDetailsCard({
     super.key,
     required this.pickupSpotName,
-    required this.destination,
+    required this.dropoffLabel,
     required this.rideId,
     required this.paymentMethod,
     required this.estimatedFare,
@@ -16,7 +15,7 @@ class TripDetailsCard extends StatelessWidget {
   });
 
   final String pickupSpotName;
-  final SuggestedLocation? destination;
+  final String dropoffLabel;
   final String rideId;
   final String paymentMethod;
   final String estimatedFare;
@@ -25,7 +24,9 @@ class TripDetailsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final destName = destination?.name ?? 'Bashir Super Market';
+    final destName = dropoffLabel.trim().isEmpty
+        ? 'Drop-off unavailable'
+        : dropoffLabel.trim();
 
     return Column(
       children: [
@@ -73,7 +74,6 @@ class TripDetailsCard extends StatelessWidget {
                   ),
                 ),
                 title: destName,
-                subtitle: '1 Person (Add)',
               ),
               const SizedBox(height: 16),
               _TripRow(

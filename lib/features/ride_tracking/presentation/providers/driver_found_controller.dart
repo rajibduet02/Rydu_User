@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../app/router/app_router.dart';
-import '../../../../app/router/route_names.dart';
+import '../../../ride_booking/domain/accepted_ride_identity.dart';
 import '../../../ride_booking/presentation/models/ride_flow_extra.dart';
 import '../../../ride_booking/presentation/models/ride_vehicle_option.dart';
 import '../../../ride_booking/presentation/models/suggested_location.dart';
@@ -18,8 +17,12 @@ class DriverFoundState {
     this.paymentMethod = '',
     this.driverName = '',
     this.driverRating = '',
-    this.vehicleName = '',
+    this.profileImageUrl = '',
+    this.vehicleMakeModel = '',
+    this.vehicleColorYear = '',
     this.plateNumber = '',
+    this.driverPhone = '',
+    this.dropoffLabel = '',
     this.eta = '',
     this.tripStatus = '',
     this.rideId = '',
@@ -37,8 +40,12 @@ class DriverFoundState {
   final String paymentMethod;
   final String driverName;
   final String driverRating;
-  final String vehicleName;
+  final String profileImageUrl;
+  final String vehicleMakeModel;
+  final String vehicleColorYear;
   final String plateNumber;
+  final String driverPhone;
+  final String dropoffLabel;
   final String eta;
   final String tripStatus;
   final String rideId;
@@ -56,8 +63,12 @@ class DriverFoundState {
     String? paymentMethod,
     String? driverName,
     String? driverRating,
-    String? vehicleName,
+    String? profileImageUrl,
+    String? vehicleMakeModel,
+    String? vehicleColorYear,
     String? plateNumber,
+    String? driverPhone,
+    String? dropoffLabel,
     String? eta,
     String? tripStatus,
     String? rideId,
@@ -76,8 +87,12 @@ class DriverFoundState {
       paymentMethod: paymentMethod ?? this.paymentMethod,
       driverName: driverName ?? this.driverName,
       driverRating: driverRating ?? this.driverRating,
-      vehicleName: vehicleName ?? this.vehicleName,
+      profileImageUrl: profileImageUrl ?? this.profileImageUrl,
+      vehicleMakeModel: vehicleMakeModel ?? this.vehicleMakeModel,
+      vehicleColorYear: vehicleColorYear ?? this.vehicleColorYear,
       plateNumber: plateNumber ?? this.plateNumber,
+      driverPhone: driverPhone ?? this.driverPhone,
+      dropoffLabel: dropoffLabel ?? this.dropoffLabel,
       eta: eta ?? this.eta,
       tripStatus: tripStatus ?? this.tripStatus,
       rideId: rideId ?? this.rideId,
@@ -97,8 +112,11 @@ class DriverFoundController extends Notifier<DriverFoundState> {
   }
 
   void syncFromRideBooking(RideBookingState ride) {
-    final driver = ride.assignedDriver;
-    final etaMinutes = driver?.etaMinutes;
+    final identity = AcceptedRideIdentity.fromAssignment(
+      driver: ride.assignedDriver,
+      vehicle: ride.assignedVehicle,
+      etaMinutes: ride.driverEtaMinutes,
+    );
     final phaseLabel = switch (ride.phase) {
       RidePlanningPhase.driverAccepted => 'Driver assigned',
       RidePlanningPhase.driverEnRoute => 'Driver en route',
@@ -117,11 +135,19 @@ class DriverFoundController extends Notifier<DriverFoundState> {
       selectedVehicle: ride.selectedVehicle,
       estimatedFare: ride.estimatedFare ?? '',
       paymentMethod: ride.paymentMethod,
-      driverName: driver?.name ?? '',
-      driverRating: driver?.rating ?? '',
-      vehicleName: driver?.vehicleName ?? ride.selectedVehicle?.name ?? '',
-      plateNumber: driver?.plateNumber ?? '',
-      eta: etaMinutes != null ? '$etaMinutes min' : '',
+      driverName: identity.driverName == 'Driver assigned'
+          ? ''
+          : identity.driverName,
+      driverRating: identity.rating ?? '',
+      profileImageUrl: identity.profileImageUrl ?? '',
+      vehicleMakeModel: identity.makeModel ?? '',
+      vehicleColorYear: identity.colorYear ?? '',
+      plateNumber: identity.plateNumber ?? '',
+      driverPhone: identity.phone ?? '',
+      dropoffLabel: ride.destinationLabel == 'Destination'
+          ? ''
+          : ride.destinationLabel,
+      eta: identity.etaLabel ?? '',
       tripStatus: phaseLabel,
       rideId: ride.bookingNumber ?? ride.bookingId ?? '',
       clearError: true,
@@ -156,14 +182,6 @@ class DriverFoundController extends Notifier<DriverFoundState> {
 
   void toggleTripDetails() {
     state = state.copyWith(showTripDetails: !state.showTripDetails);
-  }
-
-  Future<void> callDriver() async {
-    state = state.copyWith(clearError: true);
-  }
-
-  void messageDriver() {
-    ref.read(goRouterProvider).push(RouteNames.chat);
   }
 
   Future<void> shareTripStatus() async {

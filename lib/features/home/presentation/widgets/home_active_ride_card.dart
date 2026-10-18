@@ -23,11 +23,13 @@ class HomeActiveRideCard extends ConsumerWidget {
         ? state.pickupSpotLabel
         : (state.pickupLocation.isNotEmpty ? state.pickupLocation : 'Pickup');
     final driver = state.assignedDriver;
+    final vehicleLabel =
+        state.assignedVehicle?.displayLabel ?? driver?.plateNumber;
     final driverLine = driver == null
         ? null
         : [
             driver.name,
-            driver.vehicleName ?? driver.plateNumber,
+            vehicleLabel,
           ].whereType<String>().where((part) => part.trim().isNotEmpty).join(' · ');
 
     return Material(

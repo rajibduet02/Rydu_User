@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/router/route_names.dart';
+import '../../../ride_booking/domain/entities/ride_option_entity.dart';
 import '../../../ride_booking/presentation/models/ride_flow_extra.dart';
 import '../../../ride_booking/presentation/providers/ride_booking_provider.dart';
 import '../../../ride_booking/presentation/widgets/active_ride_map.dart';
@@ -56,8 +57,18 @@ class _FindingDriverScreenState extends ConsumerState<FindingDriverScreen> {
     if (state.isAssignedRidePhase) {
       if (c.hasNavigatedForPhase(state.phase)) return;
       c.markPhaseNavigated(state.phase);
-      final vehicle = state.selectedVehicle;
-      if (vehicle == null) return;
+      final vehicle =
+          state.selectedVehicle ??
+          RideOptionEntity(
+            id: state.bookingId ?? 'active',
+            name: state.selectedRideType.isEmpty
+                ? 'Ride'
+                : state.selectedRideType,
+            category: 'recommended',
+            time: '',
+            description: state.bookingStatus ?? '',
+            price: state.estimatedFare ?? '',
+          );
       context.pushReplacement(
         RouteNames.driverFound,
         extra: RideFlowExtra.buildDriverFoundExtra(

@@ -437,6 +437,12 @@ abstract final class RidePlanningParsers {
         map['vehicleName'] ?? map['vehicle'] ?? map['vehicleType'],
       ),
       etaMinutes: eta,
+      profileImageUrl: asNonEmptyString(
+        map['profileImageUrl'] ??
+            map['avatarUrl'] ??
+            map['imageUrl'] ??
+            map['photoUrl'],
+      ),
     );
   }
 
@@ -555,6 +561,7 @@ abstract final class RidePlanningParsers {
     final make = asNonEmptyString(map['make'] ?? map['brand']);
     final model = asNonEmptyString(map['model']);
     final color = asNonEmptyString(map['color']);
+    final year = asModelYear(map['year']);
     final plate = asNonEmptyString(
       map['plateNumber'] ?? map['plate'] ?? map['maskedPlate'],
     );
@@ -562,6 +569,7 @@ abstract final class RidePlanningParsers {
         make == null &&
         model == null &&
         color == null &&
+        year == null &&
         plate == null) {
       return null;
     }
@@ -570,8 +578,21 @@ abstract final class RidePlanningParsers {
       make: make,
       model: model,
       color: color,
+      year: year,
       plateNumber: plate,
     );
+  }
+
+  /// Vehicle model year. Only the booking vehicle `year` key is read.
+  static int? asModelYear(dynamic value) {
+    int? year;
+    if (value is num) {
+      year = value.round();
+    } else if (value is String) {
+      year = int.tryParse(value.trim());
+    }
+    if (year == null || year < 1950 || year > 2100) return null;
+    return year;
   }
 
   static BookingEntity? booking(dynamic raw) {

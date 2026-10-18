@@ -4,6 +4,8 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../../core/maps/encoded_polyline_decoder.dart';
 import '../providers/ride_booking_provider.dart';
+import '../providers/service_area_sync.dart';
+import '../service_area/service_area_polygons.dart';
 import '../theme/ride_booking_tokens.dart';
 
 /// Shared Google Map for planning and post-booking active-ride phases.
@@ -80,6 +82,9 @@ class _ActiveRideMapState extends ConsumerState<ActiveRideMap> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(rideBookingControllerProvider);
+    ref.watch(serviceAreaSyncProvider);
+    final area = ref.watch(serviceAreaDecisionProvider);
+    final servicePolygons = serviceAreaPolygons(area.config);
 
     ref.listen(rideBookingControllerProvider, (prev, next) {
       if (_controller == null) return;
@@ -148,19 +153,52 @@ class _ActiveRideMapState extends ConsumerState<ActiveRideMap> {
         ),
     };
 
-    return GoogleMap(
-      initialCameraPosition: CameraPosition(target: target, zoom: 13),
-      markers: markers,
-      polylines: polylines,
-      myLocationEnabled: false,
-      myLocationButtonEnabled: false,
-      zoomControlsEnabled: false,
-      compassEnabled: false,
-      mapToolbarEnabled: false,
-      onMapCreated: (controller) {
-        _controller = controller;
-        _fit(state);
-      },
+    return Stack(
+      children: [
+        GoogleMap(
+          initialCameraPosition: CameraPosition(target: target, zoom: 13),
+          markers: markers,
+          polylines: polylines,
+          polygons: servicePolygons,
+          myLocationEnabled: false,
+          myLocationButtonEnabled: false,
+          zoomControlsEnabled: false,
+          compassEnabled: false,
+          mapToolbarEnabled: false,
+          onMapCreated: (controller) {
+            _controller = controller;
+            _fit(state);
+          },
+        ),
+        if (servicePolygons.isNotEmpty)
+          const Positioned(
+            left: 12,
+            right: 12,
+            bottom: 8,
+            child: _ServiceAreaGuide(),
+          ),
+      ],
+    );
+  }
+}
+
+class _ServiceAreaGuide extends StatelessWidget {
+  const _ServiceAreaGuide();
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xF0FFFFFF),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: const Padding(
+        padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: Text(
+          serviceAreaGuidanceLabel,
+          style: TextStyle(fontSize: 11, color: Color(0xFF37474F)),
+        ),
+      ),
     );
   }
 }

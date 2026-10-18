@@ -16,6 +16,7 @@ abstract final class PassengerApiPaths {
   static String get services => '$_p/services';
   static String get paymentMethods => '$_p/payment-methods';
   static String get paymentsConfig => '/api/v1/config/payments';
+  static String get serviceArea => '/api/v1/config/service-area';
   static String get nearbyDrivers => '$_p/drivers/nearby';
   static String get bookings => '$_p/bookings';
   static String get activeBooking => '$_p/bookings/active';

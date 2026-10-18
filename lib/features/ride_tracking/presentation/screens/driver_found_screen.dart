@@ -3,11 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/router/route_names.dart';
+import '../../../ride_booking/data/utils/ride_identity_debug.dart';
+import '../../../ride_booking/domain/accepted_ride_identity.dart';
 import '../../../ride_booking/presentation/models/ride_flow_extra.dart';
 import '../../../ride_booking/presentation/providers/ride_booking_provider.dart';
 import '../../../ride_booking/presentation/theme/ride_booking_tokens.dart';
 import '../../../ride_booking/presentation/widgets/active_ride_map.dart';
 import '../providers/driver_found_provider.dart';
+import '../utils/dial_driver_phone.dart';
 import '../widgets/driver_info_card.dart';
 import '../widgets/recording_consent_overlay.dart';
 import '../widgets/trip_details_card.dart';
@@ -21,6 +24,7 @@ class DriverFoundScreen extends ConsumerStatefulWidget {
 
 class _DriverFoundScreenState extends ConsumerState<DriverFoundScreen> {
   bool _initialized = false;
+  String? _loggedCardKey;
   bool _showCancelSheet = false;
   bool _showCancelConfirm = false;
   String? _cancelReason;
@@ -67,9 +71,33 @@ class _DriverFoundScreenState extends ConsumerState<DriverFoundScreen> {
       });
     }
 
-    final title = state.eta.isNotEmpty
-        ? 'Pickup in ${state.eta}'
+    final identity = AcceptedRideIdentity.fromAssignment(
+      driver: ride.assignedDriver,
+      vehicle: ride.assignedVehicle,
+      etaMinutes: ride.driverEtaMinutes,
+    );
+    final cardKey =
+        '${ride.bookingId}|${identity.driverName}|${identity.makeModel}|${identity.plateNumber}|${identity.etaLabel}';
+    if (cardKey != _loggedCardKey &&
+        (identity.plateNumber != null ||
+            identity.makeModel != null ||
+            identity.driverName != 'Driver assigned')) {
+      _loggedCardKey = cardKey;
+      RideIdentityDebug.log(
+        'identification card rendered',
+        bookingId: ride.bookingId,
+        hasDriver: ride.assignedDriver != null,
+        hasVehicle: ride.assignedVehicle != null,
+        hasEta: identity.etaLabel != null,
+      );
+    }
+    final title = identity.etaLabel != null
+        ? 'Pickup in ${identity.etaLabel}'
         : (state.tripStatus.isNotEmpty ? state.tripStatus : 'Driver assigned');
+    final sheetMaxHeight =
+        (MediaQuery.sizeOf(context).height -
+            MediaQuery.paddingOf(context).vertical) *
+        0.68;
 
     return Scaffold(
       backgroundColor: RideBookingTokens.background,
@@ -132,8 +160,12 @@ class _DriverFoundScreenState extends ConsumerState<DriverFoundScreen> {
                     ],
                   ),
                 ),
-                Container(
-                  decoration: const BoxDecoration(
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxHeight: sheetMaxHeight),
+                  child: Container(
+                    width: double.infinity,
+                    clipBehavior: Clip.antiAlias,
+                    decoration: const BoxDecoration(
                     color: RideBookingTokens.background,
                     borderRadius: BorderRadius.vertical(
                       top: Radius.circular(32),
@@ -142,7 +174,7 @@ class _DriverFoundScreenState extends ConsumerState<DriverFoundScreen> {
                       top: BorderSide(color: RideBookingTokens.border),
                     ),
                   ),
-                  child: SingleChildScrollView(
+                    child: SingleChildScrollView(
                     padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
                     child: Column(
                       children: [
@@ -186,6 +218,17 @@ class _DriverFoundScreenState extends ConsumerState<DriverFoundScreen> {
                           ],
                         ),
                         const SizedBox(height: 20),
+                        if (state.dropoffLabel.isNotEmpty) ...[
+                          Text(
+                            'Drop-off · ${state.dropoffLabel}',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: RideBookingTokens.muted,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
                         if (ride.recordingConsentStatusLabel != null) ...[
                           RecordingConsentStatusBanner(
                             label: ride.recordingConsentStatusLabel!,
@@ -203,32 +246,33 @@ class _DriverFoundScreenState extends ConsumerState<DriverFoundScreen> {
                         ),
                         const SizedBox(height: 12),
                         DriverInfoCard(
-                          plateNumber: state.plateNumber.isNotEmpty
-                              ? state.plateNumber
-                              : '—',
-                          driverName: state.driverName.isNotEmpty
-                              ? state.driverName
-                              : 'Driver assigned',
-                          onMessage: c.messageDriver,
-                          onCall: () {
-                            c.callDriver();
-                            final phone = ride.assignedDriver?.phone;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  phone != null && phone.isNotEmpty
-                                      ? 'Calling driver $phone…'
-                                      : 'Driver phone unavailable',
-                                ),
-                              ),
-                            );
-                          },
+                          plateNumber: identity.plateNumber ?? '',
+                          driverName: identity.driverName,
+                          rating: identity.rating,
+                          profileImageUrl: identity.profileImageUrl,
+                          makeModel: identity.makeModel,
+                          colorYear: identity.colorYear,
+                          onCall: identity.canCall
+                              ? () async {
+                                  final started = await dialDriverPhone(
+                                    identity.phone!,
+                                  );
+                                  if (!context.mounted || started) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Could not open the phone dialer.',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              : null,
                         ),
                         if (state.showTripDetails) ...[
                           const SizedBox(height: 12),
                           TripDetailsCard(
                             pickupSpotName: state.pickupSpotName,
-                            destination: state.destination,
+                            dropoffLabel: state.dropoffLabel,
                             rideId: state.rideId,
                             paymentMethod: state.paymentMethod,
                             estimatedFare: state.estimatedFare,
@@ -250,6 +294,7 @@ class _DriverFoundScreenState extends ConsumerState<DriverFoundScreen> {
                       ],
                     ),
                   ),
+                ),
                 ),
               ],
             ),

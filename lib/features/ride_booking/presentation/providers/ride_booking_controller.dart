@@ -13,7 +13,10 @@ import '../../../../core/network/passenger_api_error_mapper.dart';
 import '../../../../core/payments/rydu_payments.dart';
 import '../../../../core/payments/stripe_debug.dart';
 import '../../../payment/presentation/providers/payment_method_provider.dart';
+import '../../data/repositories/service_area_repository_impl.dart';
 import '../../data/services/stripe_payment_gateway.dart';
+import '../../data/utils/ride_assignment.dart';
+import '../../data/utils/ride_identity_debug.dart';
 import '../../data/utils/ride_planning_parsers.dart';
 import '../../../../core/network/passenger_socket_service.dart';
 import '../../domain/constants/ride_booking_type_ids.dart';
@@ -21,6 +24,7 @@ import '../../domain/entities/pickup_spot_entity.dart';
 import '../../domain/entities/ride_planning_entities.dart';
 import '../../domain/payments/payment_authorization_poller.dart';
 import '../../domain/recording_consent_status.dart';
+import '../../domain/service_area/service_area_models.dart';
 import '../models/ride_flow_extra.dart';
 import '../models/ride_vehicle_option.dart';
 import '../models/suggested_location.dart';
@@ -120,6 +124,8 @@ class RideBookingState {
     this.idempotencyKey,
     this.cancelIdempotencyKey,
     this.assignedDriver,
+    this.assignedVehicle,
+    this.driverEtaMinutes,
     this.driverLocation,
     this.socketStatus = ActiveRideSocketStatus.idle,
     this.promotionBanner,
@@ -182,6 +188,10 @@ class RideBookingState {
   final String? idempotencyKey;
   final String? cancelIdempotencyKey;
   final AssignedDriverEntity? assignedDriver;
+
+  /// Vehicle on the active booking. Not the selected service category.
+  final BookingVehicleEntity? assignedVehicle;
+  final int? driverEtaMinutes;
   final DriverLocationEntity? driverLocation;
   final ActiveRideSocketStatus socketStatus;
   final String? promotionBanner;
@@ -461,6 +471,10 @@ class RideBookingState {
     bool clearCancelIdempotencyKey = false,
     AssignedDriverEntity? assignedDriver,
     bool clearAssignedDriver = false,
+    BookingVehicleEntity? assignedVehicle,
+    bool clearAssignedVehicle = false,
+    int? driverEtaMinutes,
+    bool clearDriverEta = false,
     DriverLocationEntity? driverLocation,
     bool clearDriverLocation = false,
     ActiveRideSocketStatus? socketStatus,
@@ -554,6 +568,12 @@ class RideBookingState {
       assignedDriver: clearAssignedDriver
           ? null
           : (assignedDriver ?? this.assignedDriver),
+      assignedVehicle: clearAssignedVehicle
+          ? null
+          : (assignedVehicle ?? this.assignedVehicle),
+      driverEtaMinutes: clearDriverEta
+          ? null
+          : (driverEtaMinutes ?? this.driverEtaMinutes),
       driverLocation: clearDriverLocation
           ? null
           : (driverLocation ?? this.driverLocation),
@@ -1392,6 +1412,12 @@ class RideBookingController extends Notifier<RideBookingState> {
     final pickup = state.pickupPlace!;
     final dropoff = state.dropoffPlace!;
     final actionId = ++_routeQuoteActionId;
+    final allowed = await _passesServiceArea(
+      pickup: pickup,
+      dropoff: dropoff,
+      creating: false,
+    );
+    if (!allowed || actionId != _routeQuoteActionId) return;
 
     state = state.copyWith(
       isLoadingRoute: true,
@@ -1555,6 +1581,13 @@ class RideBookingController extends Notifier<RideBookingState> {
     final pickup = state.pickupPlace;
     final dropoff = state.dropoffPlace;
     if (pickup == null || dropoff == null) return;
+
+    final allowed = await _passesServiceArea(
+      pickup: pickup,
+      dropoff: dropoff,
+      creating: false,
+    );
+    if (!allowed) return;
 
     state = state.copyWith(
       isLoadingQuote: true,
@@ -1799,6 +1832,18 @@ class RideBookingController extends Notifier<RideBookingState> {
       StripeDebug.log('bookingRequestWillBeSent=false');
       StripeDebug.log('quoted booking detected -> checking Stripe payment status');
       await retryCardPayment();
+      return;
+    }
+
+    final areaAllowed = await _passesServiceArea(
+      pickup: state.pickupPlace!,
+      dropoff: state.dropoffPlace!,
+      creating: true,
+    );
+    if (!areaAllowed) {
+      StripeDebug.log('bookingRequestWillBeSent=false');
+      StripeDebug.log('BOOKING BLOCKED');
+      StripeDebug.log('reason=service area');
       return;
     }
 
@@ -2098,6 +2143,8 @@ class RideBookingController extends Notifier<RideBookingState> {
       isCancelling: false,
       clearBookingId: true,
       clearAssignedDriver: true,
+      clearAssignedVehicle: true,
+      clearDriverEta: true,
       clearDriverLocation: true,
       clearCancelIdempotencyKey: true,
       clearIdempotencyKey: true,
@@ -2185,12 +2232,7 @@ class RideBookingController extends Notifier<RideBookingState> {
   }
 
   void _applySocketBookingEvent(Map<String, dynamic> event, String bookingId) {
-    final eventBookingId = event['bookingId']?.toString();
-    if (eventBookingId != null &&
-        eventBookingId.isNotEmpty &&
-        eventBookingId != bookingId) {
-      return;
-    }
+    if (!RideAssignment.eventMatchesBooking(event, bookingId)) return;
 
     final eventName = (event['event'] ?? '').toString().toLowerCase();
     var status = (event['status'] ?? '').toString();
@@ -2201,10 +2243,47 @@ class RideBookingController extends Notifier<RideBookingState> {
     }
     if (status.isEmpty) return;
 
-    final phase = _phaseFromBookingStatus(status);
-    final driver = RidePlanningParsers.assignedDriver(
-      event['driver'] ?? event['assignedDriver'],
+    final incomingHasDriver =
+        RidePlanningParsers.assignedDriver(
+          event['driver'] ?? event['assignedDriver'],
+        ) !=
+        null;
+    final stalePreAssignment = RideAssignment.isStalePreAssignment(
+      currentStatus: state.bookingStatus ?? '',
+      incomingStatus: status,
+      incomingHasDriver: incomingHasDriver,
+      incomingHasVehicle: event.containsKey('vehicle'),
     );
+    if (stalePreAssignment) {
+      RideIdentityDebug.log(
+        'ignored stale pre-assignment event',
+        bookingId: bookingId,
+        hasDriver: state.assignedDriver != null,
+        hasVehicle: state.assignedVehicle != null,
+        hasEta: state.driverEtaMinutes != null,
+      );
+      return;
+    }
+
+    final phase = _phaseFromBookingStatus(status);
+    final assignment = RideAssignment.mergeSocket(
+      current: RideAssignmentSnapshot(
+        driver: state.assignedDriver,
+        vehicle: state.assignedVehicle,
+        etaMinutes: state.driverEtaMinutes,
+      ),
+      event: event,
+      searchingWithoutDriver: phase == RidePlanningPhase.bookingSearching,
+    );
+    if (eventName == 'accepted') {
+      RideIdentityDebug.log(
+        'identity parsed',
+        bookingId: bookingId,
+        hasDriver: assignment.driver != null,
+        hasVehicle: assignment.vehicle != null,
+        hasEta: assignment.etaMinutes != null,
+      );
+    }
     final consentInfo =
         RidePlanningParsers.recordingConsent(event) ??
         state.recordingConsentInfo;
@@ -2213,9 +2292,12 @@ class RideBookingController extends Notifier<RideBookingState> {
       bookingId: bookingId,
       bookingStatus: status,
       phase: phase,
-      assignedDriver: driver,
-      clearAssignedDriver:
-          driver == null && phase == RidePlanningPhase.bookingSearching,
+      assignedDriver: assignment.driver,
+      clearAssignedDriver: assignment.driver == null,
+      assignedVehicle: assignment.vehicle,
+      clearAssignedVehicle: assignment.vehicle == null,
+      driverEtaMinutes: assignment.etaMinutes,
+      clearDriverEta: assignment.etaMinutes == null,
       searchStartedAt:
           phase == RidePlanningPhase.bookingSearching ||
               phase == RidePlanningPhase.bookingOffered
@@ -2223,6 +2305,18 @@ class RideBookingController extends Notifier<RideBookingState> {
           : state.searchStartedAt,
       recordingConsentInfo: consentInfo,
     );
+    if (eventName == 'accepted') {
+      RideIdentityDebug.log(
+        'ride state updated',
+        bookingId: bookingId,
+        hasDriver: state.assignedDriver != null,
+        hasVehicle: state.assignedVehicle != null,
+        hasEta: state.driverEtaMinutes != null,
+      );
+    }
+    if (assignment.needsBookingRefresh) {
+      unawaited(refreshRecordingConsentFromBackend());
+    }
     _syncRecordingConsentFromInfo(
       consentInfo,
       phase: phase,
@@ -2407,10 +2501,24 @@ class RideBookingController extends Notifier<RideBookingState> {
     }
 
     _refreshingRecordingConsent = true;
+    RideIdentityDebug.log(
+      'REST refresh started',
+      bookingId: bookingId,
+      hasDriver: state.assignedDriver != null,
+      hasVehicle: state.assignedVehicle != null,
+      hasEta: state.driverEtaMinutes != null,
+    );
     try {
       final repo = ref.read(rideBookingRepositoryProvider);
       BookingEntity? booking = await repo.bookingById(bookingId);
       booking ??= await repo.activeBooking();
+      RideIdentityDebug.log(
+        'REST refresh completed',
+        bookingId: booking?.id ?? bookingId,
+        hasDriver: booking?.driver != null,
+        hasVehicle: booking?.vehicle != null,
+        hasEta: booking?.driverEtaMinutes != null,
+      );
       if (booking == null) return;
       if (booking.id != bookingId && state.bookingId != booking.id) return;
 
@@ -2500,11 +2608,29 @@ class RideBookingController extends Notifier<RideBookingState> {
       );
     }
 
-    final nextPhase = _phaseFromBookingStatus(booking.status);
+    final sameBooking =
+        state.bookingId == null ||
+        state.bookingId!.isEmpty ||
+        state.bookingId == booking.id;
+    final preferredStatus = RideAssignment.preferStatus(
+      currentStatus: state.bookingStatus ?? '',
+      incomingStatus: booking.status,
+      sameBooking: sameBooking,
+    );
+    final nextPhase = _phaseFromBookingStatus(preferredStatus);
+    final assignment = RideAssignment.reconcileSnapshot(
+      current: RideAssignmentSnapshot(
+        driver: state.assignedDriver,
+        vehicle: state.assignedVehicle,
+        etaMinutes: state.driverEtaMinutes,
+      ),
+      currentBookingId: state.bookingId,
+      booking: booking,
+    );
     state = state.copyWith(
       bookingId: booking.id,
       bookingNumber: booking.bookingNumber,
-      bookingStatus: booking.status,
+      bookingStatus: preferredStatus,
       phase: nextPhase,
       pickupPlace: pickup,
       dropoffPlace: dropoff,
@@ -2513,8 +2639,12 @@ class RideBookingController extends Notifier<RideBookingState> {
       estimatedFare: fare,
       fareCurrency: booking.currency ?? state.fareCurrency,
       paymentMethodCode: booking.paymentMethodCode ?? state.paymentMethodCode,
-      assignedDriver: booking.driver,
-      clearAssignedDriver: booking.driver == null,
+      assignedDriver: assignment.driver,
+      clearAssignedDriver: assignment.driver == null,
+      assignedVehicle: assignment.vehicle,
+      clearAssignedVehicle: assignment.vehicle == null,
+      driverEtaMinutes: assignment.etaMinutes,
+      clearDriverEta: assignment.etaMinutes == null,
       selectedVehicle: vehicle,
       selectedVehicleId: vehicle?.id ?? booking.serviceCategoryId,
       polylinePoints: points,
@@ -2623,6 +2753,8 @@ class RideBookingController extends Notifier<RideBookingState> {
       clearCancelIdempotencyKey: true,
       clearBookingId: true,
       clearAssignedDriver: true,
+      clearAssignedVehicle: true,
+      clearDriverEta: true,
       clearDriverLocation: true,
       clearEstimatedFare: true,
       clearSearchStartedAt: true,
@@ -3166,5 +3298,36 @@ class RideBookingController extends Notifier<RideBookingState> {
       placeId: place.placeId.isEmpty ? null : place.placeId,
       spotLabel: spotLabel,
     );
+  }
+
+  /// Local boundary check before quote or create.
+  /// A missing config does not block; the quote/create response stays authoritative.
+  /// Service-area unavailability blocks so a failed check is not treated as a quote.
+  Future<bool> _passesServiceArea({
+    required PlaceEntity pickup,
+    required PlaceEntity dropoff,
+    required bool creating,
+  }) async {
+    final ServiceAreaRepository repo;
+    try {
+      repo = ref.read(serviceAreaRepositoryProvider);
+    } catch (_) {
+      return true;
+    }
+    final decision = await repo.decide(pickup: pickup, dropoff: dropoff);
+    ref.read(serviceAreaDecisionProvider.notifier).state = decision;
+    if (decision.allowsQuoteOrBooking) return true;
+    state = state.copyWith(
+      isLoadingRoute: false,
+      isLoadingQuote: false,
+      isCreatingBooking: false,
+      phase: creating
+          ? RidePlanningPhase.quoteLoaded
+          : RidePlanningPhase.error,
+      cardPaymentUiState: CardPaymentUiState.idle,
+      errorMessage:
+          decision.message ?? serviceAreaUnavailableMessage,
+    );
+    return false;
   }
 }

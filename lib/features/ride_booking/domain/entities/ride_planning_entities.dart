@@ -233,6 +233,7 @@ class AssignedDriverEntity {
     this.rating,
     this.vehicleName,
     this.etaMinutes,
+    this.profileImageUrl,
   });
 
   final String id;
@@ -242,6 +243,9 @@ class AssignedDriverEntity {
   final String? rating;
   final String? vehicleName;
   final int? etaMinutes;
+
+  /// Present only when the booking driver payload includes a photo URL.
+  final String? profileImageUrl;
 }
 
 class BookingVehicleEntity {
@@ -250,6 +254,7 @@ class BookingVehicleEntity {
     this.make,
     this.model,
     this.color,
+    this.year,
     this.plateNumber,
   });
 
@@ -257,6 +262,9 @@ class BookingVehicleEntity {
   final String? make;
   final String? model;
   final String? color;
+
+  /// Model year when the booking vehicle payload includes `year`.
+  final int? year;
   final String? plateNumber;
 
   String? get displayName {

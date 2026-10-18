@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../features/ride_booking/domain/service_area/service_area_messages.dart';
 import '../payments/rydu_payments.dart';
 
 /// Passenger API failure with a user-friendly message.
@@ -26,6 +27,16 @@ abstract final class PassengerApiErrorMapper {
     final extracted = _extract(error.response?.data);
     final code = extracted?.code;
     final message = extracted?.message;
+
+    final known = _knownServiceMessage(code, extracted?.details);
+    if (known != null) {
+      return PassengerApiException(
+        known,
+        code: code,
+        statusCode: status,
+        details: extracted?.details,
+      );
+    }
 
     final stripeMapped = userMessageForCode(code);
     if (stripeMapped != null) {
@@ -109,12 +120,28 @@ abstract final class PassengerApiErrorMapper {
     if (root['success'] != false) return null;
     final extracted = _extract(root);
     return PassengerApiException(
-      userMessageForCode(extracted?.code) ??
+      _knownServiceMessage(extracted?.code, extracted?.details) ??
+          userMessageForCode(extracted?.code) ??
           extracted?.message ??
           'Something went wrong. Please try again.',
       code: extracted?.code,
       details: extracted?.details,
     );
+  }
+
+  static String? _knownServiceMessage(
+    String? code,
+    Map<String, dynamic>? details,
+  ) {
+    if (code == 'OUT_OF_SERVICE_AREA') {
+      return ServiceAreaMessages.outOfServiceMessage(
+        ServiceAreaMessages.failedPointsFromDetails(details),
+      );
+    }
+    if (code == 'SERVICE_AREA_UNAVAILABLE') {
+      return ServiceAreaMessages.unavailable;
+    }
+    return null;
   }
 
   /// Maps known payment/Stripe backend codes to user-safe copy.

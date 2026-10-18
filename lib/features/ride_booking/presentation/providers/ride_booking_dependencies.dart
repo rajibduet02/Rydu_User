@@ -7,7 +7,10 @@ import '../../../../core/network/passenger_socket_service.dart';
 import '../../data/datasources/passenger_ride_remote_datasource.dart';
 import '../../data/datasources/ride_booking_local_datasource.dart';
 import '../../data/datasources/ride_booking_remote_datasource.dart';
+import '../../data/datasources/service_area_remote_datasource.dart';
 import '../../data/repositories/ride_booking_repository_impl.dart';
+import '../../data/repositories/service_area_repository_impl.dart';
+import '../../domain/service_area/service_area_models.dart';
 import '../../data/services/stripe_payment_gateway.dart';
 import '../../domain/repositories/ride_booking_repository.dart';
 import '../../domain/usecases/confirm_pickup_usecase.dart';
@@ -49,6 +52,16 @@ final rideBookingRemoteDatasourceProvider =
     Provider<RideBookingRemoteDatasource>((ref) {
       return RideBookingRemoteDatasourceImpl();
     });
+
+final serviceAreaRepositoryProvider = Provider<ServiceAreaRepository>((ref) {
+  return ServiceAreaRepositoryImpl(
+    ServiceAreaRemoteDatasourceImpl(ref.watch(apiClientProvider)),
+  );
+});
+
+final serviceAreaDecisionProvider = StateProvider<ServiceAreaDecision>(
+  (ref) => const ServiceAreaDecision.idle(),
+);
 
 final rideBookingRepositoryProvider = Provider<RideBookingRepository>((ref) {
   return RideBookingRepositoryImpl(

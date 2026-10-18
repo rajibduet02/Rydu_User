@@ -10,6 +10,8 @@ import '../models/ride_flow_extra.dart';
 import '../models/ride_vehicle_option.dart';
 import '../../../payment/presentation/widgets/payment_method_sheet.dart';
 import '../providers/ride_booking_provider.dart';
+import '../providers/service_area_sync.dart';
+import '../service_area/service_area_polygons.dart';
 import '../theme/ride_booking_tokens.dart';
 import '../widgets/card_payment_status_panel.dart';
 import '../widgets/payment_method_tile.dart';
@@ -130,6 +132,9 @@ class _RideSelectionScreenState extends ConsumerState<RideSelectionScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(rideBookingControllerProvider);
+    ref.watch(serviceAreaSyncProvider);
+    final area = ref.watch(serviceAreaDecisionProvider);
+    final servicePolygons = serviceAreaPolygons(area.config);
     final c = ref.read(rideBookingControllerProvider.notifier);
     final options = state.rideOptions;
 
@@ -236,6 +241,7 @@ class _RideSelectionScreenState extends ConsumerState<RideSelectionScreen> {
                           ),
                           markers: markers,
                           polylines: polylines,
+                          polygons: servicePolygons,
                           myLocationEnabled: false,
                           myLocationButtonEnabled: false,
                           zoomControlsEnabled: false,
@@ -267,6 +273,20 @@ class _RideSelectionScreenState extends ConsumerState<RideSelectionScreen> {
                                   fontSize: 13,
                                 ),
                               ),
+                            ),
+                          ),
+                        ),
+                      if (servicePolygons.isNotEmpty)
+                        const Positioned(
+                          left: 12,
+                          right: 12,
+                          bottom: 8,
+                          child: Text(
+                            serviceAreaGuidanceLabel,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF37474F),
+                              backgroundColor: Color(0xF0FFFFFF),
                             ),
                           ),
                         ),

@@ -6,6 +6,7 @@ import 'package:socket_io_client/socket_io_client.dart' as io;
 import '../constants/api_constants.dart';
 import '../constants/auth_constants.dart';
 import '../storage/secure_storage_service.dart';
+import '../../features/ride_booking/data/utils/ride_identity_debug.dart';
 import '../../features/ride_booking/data/utils/ride_planning_parsers.dart';
 import '../../features/ride_booking/domain/entities/ride_planning_entities.dart';
 
@@ -162,6 +163,19 @@ class PassengerSocketService {
         bookingId != null &&
         bookingId != _activeBookingId) {
       return;
+    }
+    if (event == 'accepted') {
+      final driver = map['driver'] ?? map['assignedDriver'];
+      final nested = map['booking'];
+      final nestedDriver = nested is Map ? nested['driver'] : null;
+      RideIdentityDebug.log(
+        'booking:accepted received',
+        bookingId: bookingId ?? _activeBookingId,
+        hasDriver: driver != null || nestedDriver != null,
+        hasVehicle: map.containsKey('vehicle') ||
+            (nested is Map && nested.containsKey('vehicle')),
+        hasEta: map['etaMinutes'] != null || map['driverEtaMinutes'] != null,
+      );
     }
     _bookingStatusController.add(map);
   }

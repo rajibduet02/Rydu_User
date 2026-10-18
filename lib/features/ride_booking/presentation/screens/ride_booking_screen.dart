@@ -7,6 +7,7 @@ import '../../../../core/location/location_service.dart';
 import '../models/ride_booking_route_args.dart';
 import '../models/suggested_location.dart';
 import '../providers/ride_booking_provider.dart';
+import '../providers/service_area_sync.dart';
 import '../theme/ride_booking_tokens.dart';
 import '../widgets/location_input_card.dart';
 import '../widgets/ride_booking_action_tile.dart';
@@ -97,6 +98,8 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
   Widget build(BuildContext context) {
     final s = ref.watch(rideBookingControllerProvider);
     final c = ref.read(rideBookingControllerProvider.notifier);
+    ref.watch(serviceAreaSyncProvider);
+    final area = ref.watch(serviceAreaDecisionProvider);
 
     ref.listen(rideBookingControllerProvider, (prev, next) {
       // Sync pickup whenever GPS / place-details resolve. Do not key off
@@ -242,6 +245,19 @@ class _RideBookingScreenState extends ConsumerState<RideBookingScreen> {
                 },
               ),
             ),
+            if (area.message != null && area.message != s.errorMessage) ...[
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Text(
+                  area.message!,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.error,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ],
             if (s.phase == RidePlanningPhase.permissionDenied) ...[
               const SizedBox(height: 12),
               Padding(

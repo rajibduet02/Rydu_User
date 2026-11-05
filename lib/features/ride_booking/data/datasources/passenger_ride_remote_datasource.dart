@@ -94,6 +94,16 @@ abstract interface class PassengerRideRemoteDatasource {
     required String bookingId,
     required bool consent,
   });
+
+  Future<PassengerMeterSnapshot> bookingMeter(String bookingId);
+
+  Future<MeterPaymentRecord?> meterPayment(String bookingId);
+
+  Future<MeterPaymentIntentResult> createMeterPaymentIntent(String bookingId);
+
+  Future<MeterPaymentRecord?> meterPaymentReceipt(String bookingId);
+
+  Future<MeterPaymentRecord?> unpaidMeterPayment();
 }
 
 class PassengerRideRemoteDatasourceImpl
@@ -634,6 +644,87 @@ class PassengerRideRemoteDatasourceImpl
           ) ??
           RecordingConsentResult(consent: consent);
     } on DioException catch (e) {
+      throw PassengerApiErrorMapper.fromDio(e);
+    }
+  }
+
+  @override
+  Future<PassengerMeterSnapshot> bookingMeter(String bookingId) async {
+    try {
+      final response = await _apiClient.dio.get<dynamic>(
+        PassengerApiPaths.bookingMeter(bookingId),
+      );
+      _throwIfFailed(response.data);
+      final data = ApiResponseParser.unwrapData(response.data);
+      return RidePlanningParsers.passengerMeter(data);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) {
+        return PassengerMeterSnapshot.empty;
+      }
+      throw PassengerApiErrorMapper.fromDio(e);
+    }
+  }
+
+  @override
+  Future<MeterPaymentRecord?> meterPayment(String bookingId) async {
+    try {
+      final response = await _apiClient.dio.get<dynamic>(
+        PassengerApiPaths.bookingMeterPayment(bookingId),
+      );
+      _throwIfFailed(response.data);
+      final data = ApiResponseParser.unwrapData(response.data);
+      return RidePlanningParsers.meterPayment(data);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return null;
+      throw PassengerApiErrorMapper.fromDio(e);
+    }
+  }
+
+  @override
+  Future<MeterPaymentIntentResult> createMeterPaymentIntent(
+    String bookingId,
+  ) async {
+    try {
+      final response = await _apiClient.dio.post<dynamic>(
+        PassengerApiPaths.bookingMeterPaymentIntent(bookingId),
+        data: <String, dynamic>{},
+      );
+      _throwIfFailed(response.data);
+      final data = ApiResponseParser.unwrapData(response.data);
+      return RidePlanningParsers.meterPaymentIntent(data);
+    } on DioException catch (e) {
+      throw PassengerApiErrorMapper.fromDio(e);
+    }
+  }
+
+  @override
+  Future<MeterPaymentRecord?> meterPaymentReceipt(String bookingId) async {
+    try {
+      final response = await _apiClient.dio.get<dynamic>(
+        PassengerApiPaths.bookingMeterPaymentReceipt(bookingId),
+      );
+      _throwIfFailed(response.data);
+      final data = ApiResponseParser.unwrapData(response.data);
+      return RidePlanningParsers.meterPayment(data);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return null;
+      throw PassengerApiErrorMapper.fromDio(e);
+    }
+  }
+
+  @override
+  Future<MeterPaymentRecord?> unpaidMeterPayment() async {
+    try {
+      final response = await _apiClient.dio.get<dynamic>(
+        PassengerApiPaths.unpaidMeterPayment,
+      );
+      _throwIfFailed(response.data);
+      final data = ApiResponseParser.unwrapData(response.data);
+      if (data.isEmpty) return null;
+      return RidePlanningParsers.meterPayment(data) ??
+          RidePlanningParsers.booking(data)?.meterPayment;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return null;
       throw PassengerApiErrorMapper.fromDio(e);
     }
   }

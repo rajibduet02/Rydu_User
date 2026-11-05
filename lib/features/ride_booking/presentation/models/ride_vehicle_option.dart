@@ -27,6 +27,10 @@ extension RideVehicleOptionPresentation on RideOptionEntity {
     'regularFare': regularFare,
     'airportFee': airportFee,
     'airport': airport?.toJson(),
+    'billingMode': billingMode.wireValue,
+    'paymentRequiredBeforeDispatch': paymentRequiredBeforeDispatch,
+    'paymentRequiredAfterCompletion': paymentRequiredAfterCompletion,
+    'fareClassification': fareClassification,
   };
 }
 
@@ -58,6 +62,10 @@ RideOptionEntity? rideVehicleOptionFromExtra(Object? raw) {
     regularFare: (m['regularFare'] as num?)?.toDouble(),
     airportFee: (m['airportFee'] as num?)?.toDouble(),
     airport: airportQuoteFromExtra(m['airport']),
+    billingMode: BookingBillingModeParsing.fromRaw(m['billingMode'] as String?),
+    paymentRequiredBeforeDispatch: m['paymentRequiredBeforeDispatch'] as bool?,
+    paymentRequiredAfterCompletion: m['paymentRequiredAfterCompletion'] as bool?,
+    fareClassification: m['fareClassification'] as String?,
   );
 }
 
@@ -112,6 +120,10 @@ RideOptionEntity rideOptionFromQuote(
     regularFare: quote.regularFare ?? quote.displayTripFare,
     airportFee: quote.airportFee,
     airport: quote.airport,
+    billingMode: quote.billingMode,
+    paymentRequiredBeforeDispatch: quote.paymentRequiredBeforeDispatch,
+    paymentRequiredAfterCompletion: quote.paymentRequiredAfterCompletion,
+    fareClassification: quote.fareClassification,
   );
 }
 

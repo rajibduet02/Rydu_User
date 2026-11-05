@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/widgets/app_logo.dart';
 import '../theme/home_screen_tokens.dart';
 
 class HomeTopBar extends StatelessWidget {
@@ -18,7 +19,7 @@ class HomeTopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final w = MediaQuery.sizeOf(context).width;
     final btn = (w * 0.11).clamp(40.0, 44.0);
-    final logoSize = (w * 0.075).clamp(26.0, 32.0);
+    final logoHeight = (w * 0.08).clamp(28.0, 36.0);
 
     return Row(
       children: [
@@ -32,16 +33,7 @@ class HomeTopBar extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: Text(
-            'RYD U',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: HomeScreenTokens.white,
-              fontSize: logoSize,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.5,
-            ),
-          ),
+          child: Center(child: AppLogo(height: logoHeight)),
         ),
         _CircleIconButton(
           size: btn,

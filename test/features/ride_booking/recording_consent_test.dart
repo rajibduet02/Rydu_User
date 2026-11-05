@@ -195,6 +195,25 @@ class _ConsentFakeRepo implements RideBookingRepository {
           ),
         );
   }
+
+  @override
+  Future<PassengerMeterSnapshot> bookingMeter(String bookingId) async =>
+      PassengerMeterSnapshot.empty;
+
+  @override
+  Future<MeterPaymentRecord?> meterPayment(String bookingId) async => null;
+
+  @override
+  Future<MeterPaymentIntentResult> createMeterPaymentIntent(
+    String bookingId,
+  ) async => const MeterPaymentIntentResult();
+
+  @override
+  Future<MeterPaymentRecord?> meterPaymentReceipt(String bookingId) async =>
+      null;
+
+  @override
+  Future<MeterPaymentRecord?> unpaidMeterPayment() async => null;
 }
 
 RideBookingState _acceptedState({

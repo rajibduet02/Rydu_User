@@ -13,8 +13,8 @@ abstract final class SplashLayout {
     return viewportHeight < 560 ? 40 : 48;
   }
 
-  static double logoFontSize(double width) {
-    return (width * 0.195).clamp(56.0, 92.0);
+  static double logoWidth(double width) {
+    return (width * 0.78).clamp(240.0, 360.0);
   }
 
   /// ~1/3–1/4 of logo size visually.

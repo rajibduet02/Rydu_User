@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/widgets/app_logo.dart';
 import '../theme/settings_screen_tokens.dart';
 
 class SettingsFooter extends StatelessWidget {
@@ -32,16 +33,7 @@ class SettingsFooter extends StatelessWidget {
               Expanded(
                 child: Column(
                   children: [
-                    Text(
-                      'RYD U',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: SettingsScreenTokens.white,
-                        fontWeight: FontWeight.w700,
-                        fontSize: titleSize,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
+                    AppLogo(height: titleSize + 10),
                     SizedBox(height: (w * 0.02).clamp(8.0, 10.0)),
                     Text(
                       'Version $appVersion',

@@ -87,6 +87,7 @@ abstract final class RouteNames {
   static const addCard = '/add-card';
   static const rideHistory = '/ride-history';
   static const rideDetails = '/ride-details';
+  static const meterPayment = '/meter-payment';
   static const chat = '/chat';
   static const notifications = '/notifications';
   static const profile = '/profile';

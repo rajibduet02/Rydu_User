@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -13,6 +15,7 @@ import '../providers/driver_found_provider.dart';
 import '../utils/dial_driver_phone.dart';
 import '../widgets/driver_info_card.dart';
 import '../widgets/recording_consent_overlay.dart';
+import '../widgets/soft_meter_panel.dart';
 import '../widgets/trip_details_card.dart';
 
 class DriverFoundScreen extends ConsumerStatefulWidget {
@@ -22,7 +25,8 @@ class DriverFoundScreen extends ConsumerStatefulWidget {
   ConsumerState<DriverFoundScreen> createState() => _DriverFoundScreenState();
 }
 
-class _DriverFoundScreenState extends ConsumerState<DriverFoundScreen> {
+class _DriverFoundScreenState extends ConsumerState<DriverFoundScreen>
+    with WidgetsBindingObserver {
   bool _initialized = false;
   String? _loggedCardKey;
   bool _showCancelSheet = false;
@@ -39,6 +43,36 @@ class _DriverFoundScreenState extends ConsumerState<DriverFoundScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(
+        ref.read(rideBookingControllerProvider.notifier).refreshMeterFromBackend(),
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(
+        ref.read(rideBookingControllerProvider.notifier).refreshMeterFromBackend(),
+      );
+      unawaited(
+        ref.read(rideBookingControllerProvider.notifier).refreshMeterPayment(),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final ride = ref.watch(rideBookingControllerProvider);
     final state = ref.watch(driverFoundControllerProvider);
@@ -48,11 +82,14 @@ class _DriverFoundScreenState extends ConsumerState<DriverFoundScreen> {
       if (!mounted) return;
       c.syncFromRideBooking(next);
       final booking = ref.read(rideBookingControllerProvider.notifier);
-      if (next.phase == RidePlanningPhase.cancelled ||
-          next.phase == RidePlanningPhase.completed) {
+      if (next.phase == RidePlanningPhase.cancelled) {
         if (booking.hasNavigatedForPhase(next.phase)) return;
         booking.markPhaseNavigated(next.phase);
         context.go(RouteNames.home);
+      } else if (next.phase == RidePlanningPhase.completed) {
+        if (booking.hasNavigatedForPhase(next.phase)) return;
+        booking.markPhaseNavigated(next.phase);
+        unawaited(booking.navigateAfterCompletedRide());
       } else if (next.phase == RidePlanningPhase.expired ||
           next.phase == RidePlanningPhase.noDrivers) {
         if (booking.hasNavigatedForPhase(next.phase)) return;
@@ -235,6 +272,12 @@ class _DriverFoundScreenState extends ConsumerState<DriverFoundScreen> {
                           ),
                           const SizedBox(height: 12),
                         ],
+                        if (ride.shouldShowSoftMeter && ride.meter != null) ...[
+                          SoftMeterPanel(
+                            meter: ride.meter!,
+                          ),
+                          const SizedBox(height: 12),
+                        ],
                         _StatusCard(
                           pickupSpotName: state.pickupSpotName.isNotEmpty
                               ? state.pickupSpotName
@@ -276,6 +319,7 @@ class _DriverFoundScreenState extends ConsumerState<DriverFoundScreen> {
                             rideId: state.rideId,
                             paymentMethod: state.paymentMethod,
                             estimatedFare: state.estimatedFare,
+                            hideQuotedFare: ride.usesSoftMeterUi,
                             onShareTrip: () {
                               c.shareTripStatus();
                               ScaffoldMessenger.of(context).showSnackBar(

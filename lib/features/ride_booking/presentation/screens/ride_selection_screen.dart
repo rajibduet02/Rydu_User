@@ -9,6 +9,7 @@ import '../../../../core/maps/encoded_polyline_decoder.dart';
 import '../models/ride_flow_extra.dart';
 import '../models/ride_vehicle_option.dart';
 import '../../../payment/presentation/widgets/payment_method_sheet.dart';
+import '../../domain/entities/meter_payment_entities.dart';
 import '../providers/ride_booking_provider.dart';
 import '../providers/service_area_sync.dart';
 import '../service_area/service_area_polygons.dart';
@@ -439,6 +440,7 @@ class _RideSelectionScreenState extends ConsumerState<RideSelectionScreen> {
                                           isSelected:
                                               state.selectedVehicleId ==
                                               option.id,
+                                          hideFixedPrice: state.usesSoftMeterUi,
                                           onTap: () =>
                                               c.selectVehicle(option.id),
                                         ),
@@ -482,7 +484,18 @@ class _RideSelectionScreenState extends ConsumerState<RideSelectionScreen> {
                       ),
                       const SizedBox(height: 16),
                     ] else ...[
-                      if (airportFare != null) ...[
+                      if (state.usesSoftMeterUi) ...[
+                        const Text(
+                          SoftMeterPaymentCopy.beforeTrip,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: RideBookingTokens.sheetMuted,
+                            fontSize: 13,
+                            height: 1.35,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ] else if (airportFare != null) ...[
                         AirportFareBreakdown(data: airportFare),
                         const SizedBox(height: 16),
                       ],

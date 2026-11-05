@@ -112,4 +112,15 @@ abstract interface class RideBookingRepository {
     required String bookingId,
     required bool consent,
   });
+
+  Future<PassengerMeterSnapshot> bookingMeter(String bookingId);
+
+  Future<MeterPaymentRecord?> meterPayment(String bookingId);
+
+  /// POST meter-payment/payment-intent with `{}`. No fare is sent.
+  Future<MeterPaymentIntentResult> createMeterPaymentIntent(String bookingId);
+
+  Future<MeterPaymentRecord?> meterPaymentReceipt(String bookingId);
+
+  Future<MeterPaymentRecord?> unpaidMeterPayment();
 }

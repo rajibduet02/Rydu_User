@@ -1,4 +1,10 @@
+import 'booking_billing_mode.dart';
+import 'meter_payment_entities.dart';
+
+export 'booking_billing_mode.dart';
 export 'booking_payment_entities.dart';
+export 'meter_payment_entities.dart';
+export 'passenger_meter_entities.dart';
 
 class GeoPointEntity {
   const GeoPointEntity({required this.latitude, required this.longitude});
@@ -169,6 +175,10 @@ class ServiceQuoteEntity {
     this.regularFare,
     this.airportFee = 0,
     this.airport,
+    this.billingMode = BookingBillingMode.unknown,
+    this.paymentRequiredBeforeDispatch,
+    this.paymentRequiredAfterCompletion,
+    this.fareClassification,
   });
 
   final String serviceCategoryId;
@@ -189,6 +199,15 @@ class ServiceQuoteEntity {
   final double? regularFare;
   final double airportFee;
   final AirportQuoteEntity? airport;
+  final BookingBillingMode billingMode;
+  final bool? paymentRequiredBeforeDispatch;
+  final bool? paymentRequiredAfterCompletion;
+  final String? fareClassification;
+
+  bool get isMeteredPostTrip =>
+      billingMode == BookingBillingMode.meteredPostTrip;
+
+  bool get isQuotedPrepay => billingMode == BookingBillingMode.quotedPrepay;
 
   bool get hasDiscount => discountAmount > 0 && originalFare > finalFare;
 
@@ -355,6 +374,11 @@ class BookingEntity {
     this.cancelledAt,
     this.cancelledBy,
     this.cancellationReason,
+    this.meterPayment,
+    this.billingMode = BookingBillingMode.unknown,
+    this.paymentRequiredBeforeDispatch,
+    this.paymentRequiredAfterCompletion,
+    this.fareClassification,
   });
 
   final String id;
@@ -366,6 +390,10 @@ class BookingEntity {
   final String? paymentMethodCode;
   final String? paymentMethodName;
   final String? paymentStatus;
+  final BookingBillingMode billingMode;
+  final bool? paymentRequiredBeforeDispatch;
+  final bool? paymentRequiredAfterCompletion;
+  final String? fareClassification;
   final String? pickupAddress;
   final String? dropoffAddress;
   final double? pickupLatitude;
@@ -395,6 +423,7 @@ class BookingEntity {
   final DateTime? cancelledAt;
   final String? cancelledBy;
   final String? cancellationReason;
+  final MeterPaymentRecord? meterPayment;
 
   bool get isActive {
     final s = status.toLowerCase();
@@ -409,6 +438,134 @@ class BookingEntity {
     if (finalFare == null) return null;
     final c = currency ?? 'BDT';
     return '$c ${finalFare!.toStringAsFixed(2)}';
+  }
+
+  bool get isMeteredPostTrip =>
+      billingMode == BookingBillingMode.meteredPostTrip;
+
+  bool get isQuotedPrepay => billingMode == BookingBillingMode.quotedPrepay;
+
+  /// Skip the original quoted Stripe PaymentSheet for this booking.
+  bool get skipsUpfrontCardAuthorization =>
+      isMeteredPostTrip && paymentRequiredBeforeDispatch != true;
+
+  bool get isMeterUnresolved =>
+      (paymentStatus ?? '').trim().toLowerCase().replaceAll('-', '_') ==
+          'meter_unresolved' ||
+      meterPayment?.isMeterUnresolved == true;
+
+  bool get isMeteredBooking =>
+      isMeteredPostTrip ||
+      paymentRequiredAfterCompletion == true ||
+      meterPayment?.isMetered == true;
+
+  /// Payable / completed fare shown to the passenger.
+  /// Metered rides use backend [meterPayment], never the original quote.
+  String? get passengerFacingFare {
+    if (isMeterUnresolved) return null;
+    final payment = meterPayment;
+    if (payment != null && payment.isMetered) {
+      return payment.formattedFinalFare;
+    }
+    if (isMeteredBooking) return null;
+    return formattedFare;
+  }
+
+  BookingEntity copyWith({
+    String? id,
+    String? status,
+    String? bookingNumber,
+    String? serviceCategoryId,
+    String? serviceCode,
+    String? serviceName,
+    String? paymentMethodCode,
+    String? paymentMethodName,
+    String? paymentStatus,
+    String? pickupAddress,
+    String? dropoffAddress,
+    double? pickupLatitude,
+    double? pickupLongitude,
+    double? dropoffLatitude,
+    double? dropoffLongitude,
+    String? currency,
+    double? finalFare,
+    double? estimatedAmount,
+    double? discountAmount,
+    double? regularFare,
+    double? airportFee,
+    AirportQuoteEntity? airport,
+    AssignedDriverEntity? driver,
+    BookingVehicleEntity? vehicle,
+    String? encodedPolyline,
+    double? distanceKm,
+    int? durationMin,
+    int? driverEtaMinutes,
+    RecordingConsentInfo? recordingConsent,
+    bool? recordingAvailable,
+    DateTime? createdAt,
+    DateTime? acceptedAt,
+    DateTime? arrivedAt,
+    DateTime? startedAt,
+    DateTime? completedAt,
+    DateTime? cancelledAt,
+    String? cancelledBy,
+    String? cancellationReason,
+    MeterPaymentRecord? meterPayment,
+    bool clearMeterPayment = false,
+    BookingBillingMode? billingMode,
+    bool? paymentRequiredBeforeDispatch,
+    bool? paymentRequiredAfterCompletion,
+    String? fareClassification,
+  }) {
+    return BookingEntity(
+      id: id ?? this.id,
+      status: status ?? this.status,
+      bookingNumber: bookingNumber ?? this.bookingNumber,
+      serviceCategoryId: serviceCategoryId ?? this.serviceCategoryId,
+      serviceCode: serviceCode ?? this.serviceCode,
+      serviceName: serviceName ?? this.serviceName,
+      paymentMethodCode: paymentMethodCode ?? this.paymentMethodCode,
+      paymentMethodName: paymentMethodName ?? this.paymentMethodName,
+      paymentStatus: paymentStatus ?? this.paymentStatus,
+      billingMode: billingMode ?? this.billingMode,
+      paymentRequiredBeforeDispatch:
+          paymentRequiredBeforeDispatch ?? this.paymentRequiredBeforeDispatch,
+      paymentRequiredAfterCompletion:
+          paymentRequiredAfterCompletion ?? this.paymentRequiredAfterCompletion,
+      fareClassification: fareClassification ?? this.fareClassification,
+      pickupAddress: pickupAddress ?? this.pickupAddress,
+      dropoffAddress: dropoffAddress ?? this.dropoffAddress,
+      pickupLatitude: pickupLatitude ?? this.pickupLatitude,
+      pickupLongitude: pickupLongitude ?? this.pickupLongitude,
+      dropoffLatitude: dropoffLatitude ?? this.dropoffLatitude,
+      dropoffLongitude: dropoffLongitude ?? this.dropoffLongitude,
+      currency: currency ?? this.currency,
+      finalFare: finalFare ?? this.finalFare,
+      estimatedAmount: estimatedAmount ?? this.estimatedAmount,
+      discountAmount: discountAmount ?? this.discountAmount,
+      regularFare: regularFare ?? this.regularFare,
+      airportFee: airportFee ?? this.airportFee,
+      airport: airport ?? this.airport,
+      driver: driver ?? this.driver,
+      vehicle: vehicle ?? this.vehicle,
+      encodedPolyline: encodedPolyline ?? this.encodedPolyline,
+      distanceKm: distanceKm ?? this.distanceKm,
+      durationMin: durationMin ?? this.durationMin,
+      driverEtaMinutes: driverEtaMinutes ?? this.driverEtaMinutes,
+      recordingConsent: recordingConsent ?? this.recordingConsent,
+      recordingAvailable: recordingAvailable ?? this.recordingAvailable,
+      createdAt: createdAt ?? this.createdAt,
+      acceptedAt: acceptedAt ?? this.acceptedAt,
+      arrivedAt: arrivedAt ?? this.arrivedAt,
+      startedAt: startedAt ?? this.startedAt,
+      completedAt: completedAt ?? this.completedAt,
+      cancelledAt: cancelledAt ?? this.cancelledAt,
+      cancelledBy: cancelledBy ?? this.cancelledBy,
+      cancellationReason: cancellationReason ?? this.cancellationReason,
+      meterPayment: clearMeterPayment
+          ? null
+          : (meterPayment ?? this.meterPayment),
+    );
   }
 
   bool get hasAirportSurcharge => (airportFee ?? 0) > 0;

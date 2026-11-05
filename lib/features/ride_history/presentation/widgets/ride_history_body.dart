@@ -248,9 +248,31 @@ class _RideHistoryBodyState extends ConsumerState<RideHistoryBody> {
                                     );
                                   }
                                   final booking = previous[index];
+                                  final live = ride.meterPayment;
+                                  final display =
+                                      live != null &&
+                                          live.bookingId == booking.id
+                                      ? booking.copyWith(meterPayment: live)
+                                      : booking;
+                                  final confirming =
+                                      ride.meterPaymentConfirming &&
+                                      live?.bookingId == booking.id;
                                   return RideHistoryCard(
-                                    booking: booking,
+                                    booking: display,
                                     onTap: () => _openPreviousRide(booking.id),
+                                    onPayNow:
+                                        !confirming &&
+                                            display.meterPayment?.needsPayNow ==
+                                                true
+                                        ? () => ref
+                                              .read(
+                                                rideBookingControllerProvider
+                                                    .notifier,
+                                              )
+                                              .openMeterPayment(
+                                                bookingId: booking.id,
+                                              )
+                                        : null,
                                   );
                                 },
                               ),

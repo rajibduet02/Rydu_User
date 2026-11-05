@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/widgets/app_logo.dart';
 import '../theme/rentals_tokens.dart';
 import 'rentals_feature_tile.dart';
 
@@ -51,15 +52,13 @@ class RentalsBottomPanel extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'RYD U',
-                      style: TextStyle(
-                        color: RentalsTokens.titleWhite,
-                        fontSize: titleSize,
-                        fontWeight: FontWeight.w800,
-                        height: 1.05,
+                    AppLogo(
+                      width: (MediaQuery.sizeOf(context).width * 0.62).clamp(
+                        200.0,
+                        280.0,
                       ),
                     ),
+                    const SizedBox(height: 8),
                     Text(
                       'Rentals',
                       style: TextStyle(

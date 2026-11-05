@@ -10,12 +10,16 @@ class PassengerApiException implements Exception {
     this.code,
     this.statusCode,
     this.details,
+    this.retryAfter,
   });
 
   final String message;
   final String? code;
   final int? statusCode;
   final Map<String, dynamic>? details;
+
+  /// From the HTTP Retry-After header, when the server sent one.
+  final Duration? retryAfter;
 
   @override
   String toString() => message;
@@ -86,6 +90,7 @@ abstract final class PassengerApiErrorMapper {
         code: code ?? 'RATE_LIMITED',
         statusCode: status,
         details: extracted?.details,
+        retryAfter: _retryAfter(error),
       );
     }
     if (status == 503) {
@@ -112,6 +117,14 @@ abstract final class PassengerApiErrorMapper {
       statusCode: status,
       details: extracted?.details,
     );
+  }
+
+  static Duration? _retryAfter(DioException error) {
+    final header = error.response?.headers.value('retry-after');
+    if (header == null || header.trim().isEmpty) return null;
+    final seconds = int.tryParse(header.trim());
+    if (seconds == null || seconds < 0) return null;
+    return Duration(seconds: seconds);
   }
 
   static PassengerApiException? fromEnvelope(dynamic raw) {

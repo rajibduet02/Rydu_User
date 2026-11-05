@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/widgets/app_logo.dart';
+
 class SplashLogo extends StatelessWidget {
-  const SplashLogo({super.key});
+  const SplashLogo({super.key, required this.width});
+
+  final double width;
 
   @override
   Widget build(BuildContext context) {
-    return const FlutterLogo(size: 72);
+    return AppLogo(width: width);
   }
 }

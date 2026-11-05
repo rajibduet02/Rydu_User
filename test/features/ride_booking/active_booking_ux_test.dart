@@ -178,6 +178,25 @@ class _FakeRepo implements RideBookingRepository {
     consented: consent,
     recordingConsentedAt: consent ? '2030-01-01T00:00:00.000Z' : null,
   );
+
+  @override
+  Future<PassengerMeterSnapshot> bookingMeter(String bookingId) async =>
+      PassengerMeterSnapshot.empty;
+
+  @override
+  Future<MeterPaymentRecord?> meterPayment(String bookingId) async => null;
+
+  @override
+  Future<MeterPaymentIntentResult> createMeterPaymentIntent(
+    String bookingId,
+  ) async => const MeterPaymentIntentResult();
+
+  @override
+  Future<MeterPaymentRecord?> meterPaymentReceipt(String bookingId) async =>
+      null;
+
+  @override
+  Future<MeterPaymentRecord?> unpaidMeterPayment() async => null;
 }
 
 BookingEntity _searchingBooking() => const BookingEntity(

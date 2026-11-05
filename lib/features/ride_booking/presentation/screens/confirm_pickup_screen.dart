@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../domain/entities/meter_payment_entities.dart';
 import '../models/ride_flow_extra.dart';
 import '../../../payment/presentation/widgets/payment_method_sheet.dart';
 import '../providers/ride_booking_provider.dart';
@@ -184,7 +185,7 @@ class _ConfirmPickupScreenState extends ConsumerState<ConfirmPickupScreen> {
                         children: [
                           if (vehicle != null)
                             Text(
-                              airportFare == null
+                              airportFare == null && !state.usesSoftMeterUi
                                   ? '${vehicle.name} · ${state.estimatedFare ?? vehicle.price}'
                                   : vehicle.name,
                               style: const TextStyle(
@@ -202,7 +203,17 @@ class _ConfirmPickupScreenState extends ConsumerState<ConfirmPickupScreen> {
                               ),
                             ),
                           ],
-                          if (airportFare != null) ...[
+                          if (state.usesSoftMeterUi) ...[
+                            const SizedBox(height: 8),
+                            const Text(
+                              SoftMeterPaymentCopy.beforeTrip,
+                              style: TextStyle(
+                                color: RideBookingTokens.muted,
+                                fontSize: 13,
+                                height: 1.35,
+                              ),
+                            ),
+                          ] else if (airportFare != null) ...[
                             const SizedBox(height: 12),
                             AirportFareBreakdown(data: airportFare),
                           ],

@@ -12,8 +12,9 @@ import '../theme/splash_layout.dart';
 import '../theme/splash_tokens.dart';
 import '../widgets/splash_backdrop.dart';
 import '../widgets/splash_loading_dots.dart';
+import '../widgets/splash_logo.dart';
 
-/// Minimal splash: solid navy, centered “RYD U”, white tagline, blue loading dots.
+/// Minimal splash: solid navy, CorRyde logo, white tagline, blue loading dots.
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
@@ -73,8 +74,17 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
             .read(rideBookingControllerProvider.notifier)
             .restoreActiveBooking(navigate: false)
             .timeout(const Duration(seconds: 4));
+        unawaited(
+          ref
+              .read(rideBookingControllerProvider.notifier)
+              .recoverUnpaidMeterPayment(),
+        );
       } catch (_) {
-        // Continue to home if active-booking restore fails.
+        unawaited(
+          ref
+              .read(rideBookingControllerProvider.notifier)
+              .recoverUnpaidMeterPayment(),
+        );
       }
     }
 
@@ -118,7 +128,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
               builder: (context, constraints) {
                 final w = constraints.maxWidth;
                 final h = constraints.maxHeight;
-                final logoSize = SplashLayout.logoFontSize(w);
+                final logoWidth = SplashLayout.logoWidth(w);
                 final taglineSize = SplashLayout.taglineFontSize(w);
                 final dotSize = SplashLayout.dotSize(w);
                 final dotGap = SplashLayout.dotGap(w);
@@ -147,17 +157,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                                   opacity: fade,
                                   child: Transform.scale(
                                     scale: scale,
-                                    child: Text(
-                                      'RYD U',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: SplashTokens.white,
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: logoSize,
-                                        height: 1.05,
-                                        letterSpacing: 1.5,
-                                      ),
-                                    ),
+                                    child: SplashLogo(width: logoWidth),
                                   ),
                                 );
                               },

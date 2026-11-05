@@ -14,6 +14,7 @@ import '../../../ride_booking/presentation/providers/ride_booking_provider.dart'
 import '../providers/auth_dependencies.dart';
 import '../providers/auth_session_provider.dart';
 import '../../domain/exceptions/auth_exception.dart';
+import '../../../../core/widgets/app_logo.dart';
 import '../theme/auth_screen_tokens.dart';
 import '../widgets/auth_labeled_field.dart';
 import '../widgets/auth_prompt_link.dart';
@@ -113,6 +114,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
         await ref
             .read(rideBookingControllerProvider.notifier)
             .restoreActiveBooking(navigate: false);
+        await ref
+            .read(rideBookingControllerProvider.notifier)
+            .recoverUnpaidMeterPayment();
       } catch (_) {}
       if (!mounted) return;
       ref.read(goRouterProvider).go(RouteNames.home);
@@ -175,6 +179,11 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: AppLogo(width: (w * 0.55).clamp(180.0, 240.0)),
+                    ),
+                    const SizedBox(height: 24),
                     Text(
                       'Welcome to RYD U',
                       style: TextStyle(

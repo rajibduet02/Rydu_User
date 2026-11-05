@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:rydu_user/app/app.dart';
 import 'package:rydu_user/app/providers/shared_preferences_provider.dart';
+import 'package:rydu_user/core/widgets/app_logo.dart';
 import 'package:rydu_user/features/auth/presentation/providers/auth_session_provider.dart';
 import 'package:rydu_user/features/auth/presentation/state/auth_session_state.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -32,7 +33,7 @@ void main() {
     );
 
     await tester.pump();
-    expect(find.text('RYD U'), findsOneWidget);
+    expect(find.byType(AppLogo), findsOneWidget);
     await tester.pump(const Duration(seconds: 2));
     await tester.pump();
     expect(find.text('Welcome to RYD U'), findsOneWidget);

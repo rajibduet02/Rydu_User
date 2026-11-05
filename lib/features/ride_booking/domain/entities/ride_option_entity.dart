@@ -22,6 +22,10 @@ class RideOptionEntity {
     this.regularFare,
     this.airportFee,
     this.airport,
+    this.billingMode = BookingBillingMode.unknown,
+    this.paymentRequiredBeforeDispatch,
+    this.paymentRequiredAfterCompletion,
+    this.fareClassification,
   });
 
   final String id;
@@ -44,6 +48,15 @@ class RideOptionEntity {
   final double? regularFare;
   final double? airportFee;
   final AirportQuoteEntity? airport;
+  final BookingBillingMode billingMode;
+  final bool? paymentRequiredBeforeDispatch;
+  final bool? paymentRequiredAfterCompletion;
+  final String? fareClassification;
+
+  bool get isMeteredPostTrip =>
+      billingMode == BookingBillingMode.meteredPostTrip;
+
+  bool get isQuotedPrepay => billingMode == BookingBillingMode.quotedPrepay;
 
   bool get hasAirportSurcharge => (airportFee ?? 0) > 0;
 

@@ -217,4 +217,25 @@ class RideBookingRepositoryImpl implements RideBookingRepository {
     bookingId: bookingId,
     consent: consent,
   );
+
+  @override
+  Future<PassengerMeterSnapshot> bookingMeter(String bookingId) =>
+      _passenger.bookingMeter(bookingId);
+
+  @override
+  Future<MeterPaymentRecord?> meterPayment(String bookingId) =>
+      _passenger.meterPayment(bookingId);
+
+  @override
+  Future<MeterPaymentIntentResult> createMeterPaymentIntent(
+    String bookingId,
+  ) => _passenger.createMeterPaymentIntent(bookingId);
+
+  @override
+  Future<MeterPaymentRecord?> meterPaymentReceipt(String bookingId) =>
+      _passenger.meterPaymentReceipt(bookingId);
+
+  @override
+  Future<MeterPaymentRecord?> unpaidMeterPayment() =>
+      _passenger.unpaidMeterPayment();
 }

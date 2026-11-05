@@ -208,6 +208,25 @@ class _FakeRideBookingRepository implements RideBookingRepository {
     required String bookingId,
     required bool consent,
   }) async => RecordingConsentResult(consent: consent);
+
+  @override
+  Future<PassengerMeterSnapshot> bookingMeter(String bookingId) async =>
+      PassengerMeterSnapshot.empty;
+
+  @override
+  Future<MeterPaymentRecord?> meterPayment(String bookingId) async => null;
+
+  @override
+  Future<MeterPaymentIntentResult> createMeterPaymentIntent(
+    String bookingId,
+  ) async => const MeterPaymentIntentResult();
+
+  @override
+  Future<MeterPaymentRecord?> meterPaymentReceipt(String bookingId) async =>
+      null;
+
+  @override
+  Future<MeterPaymentRecord?> unpaidMeterPayment() async => null;
 }
 
 ProviderContainer _container({

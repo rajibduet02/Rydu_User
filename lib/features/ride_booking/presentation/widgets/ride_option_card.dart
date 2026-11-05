@@ -23,11 +23,13 @@ class RideOptionCard extends StatelessWidget {
     required this.option,
     required this.isSelected,
     required this.onTap,
+    this.hideFixedPrice = false,
   });
 
   final RideVehicleOption option;
   final bool isSelected;
   final VoidCallback onTap;
+  final bool hideFixedPrice;
 
   @override
   Widget build(BuildContext context) {
@@ -161,30 +163,44 @@ class RideOptionCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    option.price,
-                    style: const TextStyle(
-                      color: RideOptionLightTokens.title,
+              if (hideFixedPrice)
+                const SizedBox(
+                  width: 88,
+                  child: Text(
+                    'Metered',
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                      color: RideOptionLightTokens.muted,
                       fontWeight: FontWeight.w700,
-                      fontSize: 15,
+                      fontSize: 13,
                     ),
                   ),
-                  if (option.originalPrice != null) ...[
-                    const SizedBox(height: 2),
+                )
+              else
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
                     Text(
-                      option.originalPrice!,
+                      option.price,
                       style: const TextStyle(
-                        color: RideOptionLightTokens.muted,
-                        fontSize: 12,
-                        decoration: TextDecoration.lineThrough,
+                        color: RideOptionLightTokens.title,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
                       ),
                     ),
+                    if (option.originalPrice != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        option.originalPrice!,
+                        style: const TextStyle(
+                          color: RideOptionLightTokens.muted,
+                          fontSize: 12,
+                          decoration: TextDecoration.lineThrough,
+                        ),
+                      ),
+                    ],
                   ],
-                ],
-              ),
+                ),
             ],
           ),
         ),

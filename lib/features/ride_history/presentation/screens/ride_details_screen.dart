@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -5,6 +7,7 @@ import '../../../../app/router/app_router.dart';
 import '../../../../app/router/route_names.dart';
 import '../../../../core/widgets/app_loader.dart';
 import '../../../ride_booking/domain/entities/ride_planning_entities.dart';
+import '../../../ride_booking/presentation/widgets/meter_payment_card.dart';
 import '../../../ride_booking/presentation/models/airport_fare_presentation.dart';
 import '../../../ride_booking/presentation/providers/ride_booking_provider.dart';
 import '../providers/ride_history_provider.dart';
@@ -42,6 +45,11 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
       return;
     }
     ref.read(rideHistoryControllerProvider.notifier).loadDetail(id);
+    unawaited(
+      ref
+          .read(rideBookingControllerProvider.notifier)
+          .refreshMeterPayment(bookingId: id),
+    );
   }
 
   void _goBack() {
@@ -117,7 +125,25 @@ class _RideDetailsScreenState extends ConsumerState<RideDetailsScreen> {
                         style: TextStyle(color: RideHistoryTokens.muted),
                       ),
                     )
-                  : _ReadOnlyRideDetail(booking: history.detail!),
+                  : _ReadOnlyRideDetail(
+                      booking: history.detail!,
+                      livePayment: ride.meterPayment?.bookingId == id
+                          ? ride.meterPayment
+                          : null,
+                      isStartingCheckout: ride.isStartingMeterCheckout,
+                      confirming: ride.meterPaymentConfirming &&
+                          ride.meterPayment?.bookingId == id,
+                      meterError: ride.meterPaymentError,
+                      onPayNow: () => ref
+                          .read(rideBookingControllerProvider.notifier)
+                          .startMeterCheckout(bookingId: id),
+                      onViewReceipt: () => ref
+                          .read(rideBookingControllerProvider.notifier)
+                          .fetchMeterReceipt(bookingId: id),
+                      receipt: ride.meterReceipt?.bookingId == id
+                          ? ride.meterReceipt
+                          : null,
+                    ),
             ),
           ],
         ),
@@ -157,9 +183,25 @@ class _DetailError extends StatelessWidget {
 }
 
 class _ReadOnlyRideDetail extends StatelessWidget {
-  const _ReadOnlyRideDetail({required this.booking});
+  const _ReadOnlyRideDetail({
+    required this.booking,
+    this.livePayment,
+    this.receipt,
+    this.isStartingCheckout = false,
+    this.confirming = false,
+    this.meterError,
+    this.onPayNow,
+    this.onViewReceipt,
+  });
 
   final BookingEntity booking;
+  final MeterPaymentRecord? livePayment;
+  final MeterPaymentRecord? receipt;
+  final bool isStartingCheckout;
+  final bool confirming;
+  final String? meterError;
+  final VoidCallback? onPayNow;
+  final VoidCallback? onViewReceipt;
 
   @override
   Widget build(BuildContext context) {
@@ -184,9 +226,11 @@ class _ReadOnlyRideDetail extends StatelessWidget {
       ('Destination', RideHistoryPresentation.dropoffLabel(booking)),
       if (RideHistoryPresentation.serviceLabel(booking) != null)
         ('Service', RideHistoryPresentation.serviceLabel(booking)!),
-      if (booking.formattedFare != null && !booking.hasAirportSurcharge)
+      if (!booking.isMeteredBooking &&
+          booking.formattedFare != null &&
+          !booking.hasAirportSurcharge)
         ('Fare', booking.formattedFare!),
-      if (booking.hasAirportSurcharge) ...[
+      if (!booking.isMeteredBooking && booking.hasAirportSurcharge) ...[
         (
           AirportFarePresentation.tripFareLabel,
           AirportFarePresentation.money(
@@ -240,9 +284,27 @@ class _ReadOnlyRideDetail extends StatelessWidget {
         ('Recording', 'Recording available'),
     ];
 
+    final payment = livePayment ?? booking.meterPayment;
+    final shownReceipt = receipt;
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
       children: [
+        if (payment != null && payment.isMetered) ...[
+          MeterPaymentCard(
+            payment: payment,
+            errorMessage: meterError,
+            isStartingCheckout: isStartingCheckout,
+            confirming: confirming,
+            onPayNow: confirming || !payment.needsPayNow ? null : onPayNow,
+            onViewReceipt: payment.canShowPaidReceipt ? onViewReceipt : null,
+          ),
+          if (shownReceipt != null && shownReceipt.canShowPaidReceipt) ...[
+            const SizedBox(height: 16),
+            MeterReceiptCard(receipt: shownReceipt),
+          ],
+          const SizedBox(height: 16),
+        ],
         if (kind == RideHistoryStatusKind.expired)
           Padding(
             padding: const EdgeInsets.only(bottom: 16),

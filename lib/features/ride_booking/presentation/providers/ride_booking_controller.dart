@@ -141,6 +141,18 @@ class RideBookingState {
     this.paymentClientSecret,
     this.stripeReady = false,
     this.isResolvingPayment = false,
+    this.meter,
+    this.meterPayment,
+    this.unpaidMeterPayment,
+    this.meterReceipt,
+    this.isStartingMeterCheckout = false,
+    this.meterPaymentPreparing = false,
+    this.meterPaymentConfirming = false,
+    this.meterPaymentError,
+    this.billingMode = BookingBillingMode.unknown,
+    this.paymentRequiredBeforeDispatch,
+    this.paymentRequiredAfterCompletion,
+    this.fareClassification,
   });
 
   final String selectedRideType;
@@ -207,6 +219,18 @@ class RideBookingState {
   final String? paymentClientSecret;
   final bool stripeReady;
   final bool isResolvingPayment;
+  final PassengerMeterSnapshot? meter;
+  final MeterPaymentRecord? meterPayment;
+  final MeterPaymentRecord? unpaidMeterPayment;
+  final MeterPaymentRecord? meterReceipt;
+  final bool isStartingMeterCheckout;
+  final bool meterPaymentPreparing;
+  final bool meterPaymentConfirming;
+  final String? meterPaymentError;
+  final BookingBillingMode billingMode;
+  final bool? paymentRequiredBeforeDispatch;
+  final bool? paymentRequiredAfterCompletion;
+  final String? fareClassification;
 
   bool get hasSelectedVehicle =>
       selectedVehicleId != null && selectedVehicle != null;
@@ -291,6 +315,64 @@ class RideBookingState {
       phase == RidePlanningPhase.driverEnRoute ||
       phase == RidePlanningPhase.driverArrived ||
       phase == RidePlanningPhase.rideInProgress;
+
+  /// Compact Soft Meter on the active On-Demand ride screen only.
+  bool get shouldShowSoftMeter {
+    if (!isAssignedRidePhase) return false;
+    final snapshot = meter;
+    if (snapshot == null || !snapshot.hasSession) return false;
+    if (snapshot.isWalkUp) return false;
+    return true;
+  }
+
+  bool get isRentalOrReserveFlow =>
+      selectedRideType == RideBookingTypeIds.rentals ||
+      selectedRideType == RideBookingTypeIds.reserve;
+
+  /// Soft Meter / post-trip payment surfaces hide quoted prices.
+  /// Prefer authoritative [billingMode] from booking create over quote.
+  bool get usesSoftMeterUi {
+    if (isRentalOrReserveFlow) return false;
+    final snapshot = meter;
+    if (snapshot != null && snapshot.isWalkUp) return false;
+    if (billingMode == BookingBillingMode.quotedPrepay) return false;
+    if (billingMode == BookingBillingMode.meteredPostTrip) return true;
+    final vehicle = selectedVehicle;
+    if (vehicle != null) {
+      if (vehicle.isQuotedPrepay) return false;
+      if (vehicle.isMeteredPostTrip) return true;
+    }
+    // Unknown classification: keep Soft Meter UI for instant On-Demand.
+    return true;
+  }
+
+  bool get skipsUpfrontCardAuthorization {
+    if (billingMode == BookingBillingMode.meteredPostTrip &&
+        paymentRequiredBeforeDispatch != true) {
+      return true;
+    }
+    return selectedVehicle?.isMeteredPostTrip == true &&
+        selectedVehicle?.paymentRequiredBeforeDispatch != true;
+  }
+
+  bool get hasPendingMeterPayment {
+    final current = meterPayment ?? unpaidMeterPayment;
+    return current != null && current.needsPayNow;
+  }
+
+  /// Pay Now is hidden while a successful sheet is waiting on the backend.
+  bool get canOfferMeterPayNow =>
+      !meterPaymentConfirming &&
+      !isStartingMeterCheckout &&
+      hasPendingMeterPayment;
+
+  bool get shouldShowUnpaidMeterReminder {
+    if (meterPaymentConfirming) return false;
+    final unpaid = unpaidMeterPayment ?? meterPayment;
+    if (unpaid == null || !unpaid.needsPayNow) return false;
+    if (hasActiveBooking) return false;
+    return true;
+  }
 
   bool get isTerminalRidePhase =>
       phase == RidePlanningPhase.completed ||
@@ -498,6 +580,26 @@ class RideBookingState {
     bool clearPaymentClientSecret = false,
     bool? stripeReady,
     bool? isResolvingPayment,
+    PassengerMeterSnapshot? meter,
+    bool clearMeter = false,
+    MeterPaymentRecord? meterPayment,
+    bool clearMeterPayment = false,
+    MeterPaymentRecord? unpaidMeterPayment,
+    bool clearUnpaidMeterPayment = false,
+    MeterPaymentRecord? meterReceipt,
+    bool clearMeterReceipt = false,
+    bool? isStartingMeterCheckout,
+    bool? meterPaymentPreparing,
+    bool? meterPaymentConfirming,
+    String? meterPaymentError,
+    bool clearMeterPaymentError = false,
+    BookingBillingMode? billingMode,
+    bool? paymentRequiredBeforeDispatch,
+    bool clearPaymentRequiredBeforeDispatch = false,
+    bool? paymentRequiredAfterCompletion,
+    bool clearPaymentRequiredAfterCompletion = false,
+    String? fareClassification,
+    bool clearFareClassification = false,
   }) {
     return RideBookingState(
       selectedRideType: selectedRideType ?? this.selectedRideType,
@@ -607,6 +709,37 @@ class RideBookingState {
           : (paymentClientSecret ?? this.paymentClientSecret),
       stripeReady: stripeReady ?? this.stripeReady,
       isResolvingPayment: isResolvingPayment ?? this.isResolvingPayment,
+      meter: clearMeter ? null : (meter ?? this.meter),
+      meterPayment: clearMeterPayment
+          ? null
+          : (meterPayment ?? this.meterPayment),
+      unpaidMeterPayment: clearUnpaidMeterPayment
+          ? null
+          : (unpaidMeterPayment ?? this.unpaidMeterPayment),
+      meterReceipt: clearMeterReceipt
+          ? null
+          : (meterReceipt ?? this.meterReceipt),
+      isStartingMeterCheckout:
+          isStartingMeterCheckout ?? this.isStartingMeterCheckout,
+      meterPaymentPreparing:
+          meterPaymentPreparing ?? this.meterPaymentPreparing,
+      meterPaymentConfirming:
+          meterPaymentConfirming ?? this.meterPaymentConfirming,
+      meterPaymentError: clearMeterPaymentError
+          ? null
+          : (meterPaymentError ?? this.meterPaymentError),
+      billingMode: billingMode ?? this.billingMode,
+      paymentRequiredBeforeDispatch: clearPaymentRequiredBeforeDispatch
+          ? null
+          : (paymentRequiredBeforeDispatch ??
+                this.paymentRequiredBeforeDispatch),
+      paymentRequiredAfterCompletion: clearPaymentRequiredAfterCompletion
+          ? null
+          : (paymentRequiredAfterCompletion ??
+                this.paymentRequiredAfterCompletion),
+      fareClassification: clearFareClassification
+          ? null
+          : (fareClassification ?? this.fareClassification),
     );
   }
 }
@@ -641,6 +774,8 @@ class RideBookingController extends Notifier<RideBookingState> {
   StreamSubscription<Map<String, dynamic>>? _bookingSub;
   StreamSubscription<DriverLocationEntity>? _driverSub;
   StreamSubscription<Map<String, dynamic>>? _recordingSub;
+  StreamSubscription<Map<String, dynamic>>? _meterSub;
+  StreamSubscription<Map<String, dynamic>>? _meterPaymentSub;
   StreamSubscription<PassengerSocketConnectionStatus>? _socketStatusSub;
   bool _locationBootstrapStarted = false;
   DateTime? _lastDriverLocationAt;
@@ -651,6 +786,10 @@ class RideBookingController extends Notifier<RideBookingState> {
   bool suppressPickupTextInvalidation = false;
   ActiveRideSocketStatus? _previousSocketStatus;
   bool _refreshingRecordingConsent = false;
+  bool _refreshingMeter = false;
+  int _meterPaymentEpoch = 0;
+  bool _meterCheckoutInFlight = false;
+  bool _unpaidRecoveryInFlight = false;
   bool _authorizingPayment = false;
 
   @override
@@ -679,14 +818,32 @@ class RideBookingController extends Notifier<RideBookingState> {
     return _runAutocomplete(input, field);
   }
 
+  /// Test-only: apply a meter socket payload for the seeded booking.
+  @visibleForTesting
+  void debugHandleMeterEvent(Map<String, dynamic> event) {
+    final bookingId = state.bookingId;
+    if (bookingId == null || bookingId.isEmpty) return;
+    _applyMeterSocketEvent(event, bookingId);
+  }
+
+  /// Test-only: apply a meter-payment socket payload.
+  @visibleForTesting
+  void debugHandleMeterPaymentEvent(Map<String, dynamic> event) {
+    _applyMeterPaymentSocketEvent(event);
+  }
+
   Future<void> _cancelSocketSubscriptions() async {
     await _bookingSub?.cancel();
     await _driverSub?.cancel();
     await _recordingSub?.cancel();
+    await _meterSub?.cancel();
+    await _meterPaymentSub?.cancel();
     await _socketStatusSub?.cancel();
     _bookingSub = null;
     _driverSub = null;
     _recordingSub = null;
+    _meterSub = null;
+    _meterPaymentSub = null;
     _socketStatusSub = null;
   }
 
@@ -1667,7 +1824,17 @@ class RideBookingController extends Notifier<RideBookingState> {
     state = state.copyWith(
       selectedVehicleId: vehicleId,
       selectedVehicle: found,
-      estimatedFare: found.price,
+      estimatedFare: found.isMeteredPostTrip ? null : found.price,
+      clearEstimatedFare: found.isMeteredPostTrip,
+      billingMode: found.billingMode,
+      paymentRequiredBeforeDispatch: found.paymentRequiredBeforeDispatch,
+      clearPaymentRequiredBeforeDispatch:
+          found.paymentRequiredBeforeDispatch == null,
+      paymentRequiredAfterCompletion: found.paymentRequiredAfterCompletion,
+      clearPaymentRequiredAfterCompletion:
+          found.paymentRequiredAfterCompletion == null,
+      fareClassification: found.fareClassification,
+      clearFareClassification: found.fareClassification == null,
       clearError: true,
       clearIdempotencyKey: true,
     );
@@ -1861,21 +2028,28 @@ class RideBookingController extends Notifier<RideBookingState> {
     );
 
     try {
-      final usable = await _isStripeCardUsable();
-      StripeDebug.log('cardAvailable=$usable');
-      if (!usable) {
-        StripeDebug.log('bookingRequestWillBeSent=false');
-        StripeDebug.log('BOOKING BLOCKED');
-        StripeDebug.log(
-          'reason=${StripeDebug.lastUnavailableReason ?? CardBookingPayment.unavailableMessage}',
-        );
-        state = state.copyWith(
-          isCreatingBooking: false,
-          phase: RidePlanningPhase.quoteLoaded,
-          cardPaymentUiState: CardPaymentUiState.idle,
-          errorMessage: CardBookingPayment.unavailableMessage,
-        );
-        return;
+      // Quote may suggest Soft Meter post-trip billing. Booking create is
+      // authoritative; skip PaymentSheet readiness until we know we need it.
+      final quoteSkipsSheet = state.skipsUpfrontCardAuthorization;
+      if (!quoteSkipsSheet) {
+        final usable = await _isStripeCardUsable();
+        StripeDebug.log('cardAvailable=$usable');
+        if (!usable) {
+          StripeDebug.log('bookingRequestWillBeSent=false');
+          StripeDebug.log('BOOKING BLOCKED');
+          StripeDebug.log(
+            'reason=${StripeDebug.lastUnavailableReason ?? CardBookingPayment.unavailableMessage}',
+          );
+          state = state.copyWith(
+            isCreatingBooking: false,
+            phase: RidePlanningPhase.quoteLoaded,
+            cardPaymentUiState: CardPaymentUiState.idle,
+            errorMessage: CardBookingPayment.unavailableMessage,
+          );
+          return;
+        }
+      } else {
+        StripeDebug.log('cardAvailable=deferred (metered_post_trip quote)');
       }
 
       StripeDebug.log('bookingRequestWillBeSent=true');
@@ -1896,10 +2070,24 @@ class RideBookingController extends Notifier<RideBookingState> {
             idempotencyKey: key,
           );
 
+      // Booking create response overrides any earlier quote classification.
       await _applyBookingEntity(result.booking, preserveRoute: true);
       _rememberPayment(result.payment);
 
       if (_bookingNeedsCardAuthorization(result)) {
+        // Only initialize Stripe here when the quote deferred the check.
+        if (quoteSkipsSheet) {
+          final usable = await _isStripeCardUsable();
+          if (!usable) {
+            state = state.copyWith(
+              isCreatingBooking: false,
+              phase: RidePlanningPhase.paymentPending,
+              cardPaymentUiState: CardPaymentUiState.failed,
+              errorMessage: CardBookingPayment.unavailableMessage,
+            );
+            return;
+          }
+        }
         state = state.copyWith(
           isCreatingBooking: false,
           pickupConfirmed: true,
@@ -1913,6 +2101,10 @@ class RideBookingController extends Notifier<RideBookingState> {
         );
         return;
       }
+
+      StripeDebug.log(
+        'metered_post_trip or no pre-dispatch payment -> skip PaymentSheet',
+      );
 
       try {
         await _connectAndListen(result.booking.id);
@@ -1981,7 +2173,10 @@ class RideBookingController extends Notifier<RideBookingState> {
       final booking = await ref
           .read(rideBookingRepositoryProvider)
           .activeBooking();
-      if (booking == null || !booking.isActive) return false;
+      if (booking == null || !booking.isActive) {
+        await recoverUnpaidMeterPayment();
+        return false;
+      }
 
       StripeDebug.log('restore active booking');
       StripeDebug.log('bookingId=${booking.id}');
@@ -1989,7 +2184,8 @@ class RideBookingController extends Notifier<RideBookingState> {
 
       await _applyBookingEntity(booking, preserveRoute: false);
 
-      if (booking.status.toLowerCase() == 'quoted') {
+      if (booking.status.toLowerCase() == 'quoted' &&
+          !booking.skipsUpfrontCardAuthorization) {
         StripeDebug.log(
           'quoted booking detected -> checking Stripe payment status',
         );
@@ -2014,12 +2210,15 @@ class RideBookingController extends Notifier<RideBookingState> {
         clearPaymentClientSecret: true,
       );
       _ensureSearchStartedAt();
+      unawaited(refreshMeterFromBackend());
+      unawaited(recoverUnpaidMeterPayment());
 
       if (navigate) {
         _navigateForActivePhase(replace: true);
       }
       return true;
     } catch (_) {
+      unawaited(recoverUnpaidMeterPayment());
       return false;
     }
   }
@@ -2039,6 +2238,11 @@ class RideBookingController extends Notifier<RideBookingState> {
   void resumeActiveRide({bool replace = false}) {
     if (state.isPaymentPending) {
       unawaited(retryCardPayment());
+      return;
+    }
+    final unpaid = state.unpaidMeterPayment ?? state.meterPayment;
+    if (unpaid != null && unpaid.needsPayNow) {
+      openMeterPayment(bookingId: unpaid.bookingId);
       return;
     }
     if (!state.hasActiveBooking &&
@@ -2163,6 +2367,16 @@ class RideBookingController extends Notifier<RideBookingState> {
       clearBookingPayment: true,
       clearPaymentClientSecret: true,
       isResolvingPayment: false,
+      clearMeter: true,
+      clearMeterPayment: true,
+      clearMeterReceipt: true,
+      meterPaymentPreparing: false,
+      isStartingMeterCheckout: false,
+      clearMeterPaymentError: true,
+      billingMode: BookingBillingMode.unknown,
+      clearPaymentRequiredBeforeDispatch: true,
+      clearPaymentRequiredAfterCompletion: true,
+      clearFareClassification: true,
     );
   }
 
@@ -2186,8 +2400,9 @@ class RideBookingController extends Notifier<RideBookingState> {
 
   Future<void> _stopLiveUpdates() async {
     await _cancelSocketSubscriptions();
-    final socket = ref.read(passengerSocketServiceProvider);
-    socket.setActiveBookingId(null);
+    try {
+      ref.read(passengerSocketServiceProvider).setActiveBookingId(null);
+    } catch (_) {}
   }
 
   Future<void> _listenSocket(String bookingId) async {
@@ -2215,8 +2430,11 @@ class RideBookingController extends Notifier<RideBookingState> {
           (previous == ActiveRideSocketStatus.reconnecting ||
               previous == ActiveRideSocketStatus.disconnected ||
               previous == ActiveRideSocketStatus.connecting);
-      if (reconnected && state.hasActiveBooking) {
+      if (reconnected &&
+          (state.hasActiveBooking || state.hasPendingMeterPayment)) {
         unawaited(refreshRecordingConsentFromBackend());
+        unawaited(refreshMeterFromBackend());
+        unawaited(refreshMeterPayment());
       }
     });
 
@@ -2228,6 +2446,12 @@ class RideBookingController extends Notifier<RideBookingState> {
     });
     _recordingSub = socket.recordingEventStream.listen((event) {
       _applyRecordingSocketEvent(event, bookingId);
+    });
+    _meterSub = socket.meterEventStream.listen((event) {
+      _applyMeterSocketEvent(event, bookingId);
+    });
+    _meterPaymentSub = socket.meterPaymentEventStream.listen((event) {
+      _applyMeterPaymentSocketEvent(event);
     });
   }
 
@@ -2265,6 +2489,7 @@ class RideBookingController extends Notifier<RideBookingState> {
       return;
     }
 
+    final previousPhase = state.phase;
     final phase = _phaseFromBookingStatus(status);
     final assignment = RideAssignment.mergeSocket(
       current: RideAssignmentSnapshot(
@@ -2317,13 +2542,20 @@ class RideBookingController extends Notifier<RideBookingState> {
     if (assignment.needsBookingRefresh) {
       unawaited(refreshRecordingConsentFromBackend());
     }
+    if (phase == RidePlanningPhase.rideInProgress &&
+        previousPhase != RidePlanningPhase.rideInProgress) {
+      unawaited(refreshMeterFromBackend());
+    }
     _syncRecordingConsentFromInfo(
       consentInfo,
       phase: phase,
       preserveFailed: true,
     );
 
-    if (state.isTerminalRidePhase) {
+    if (phase == RidePlanningPhase.completed) {
+      unawaited(_handleCompletedRide(bookingId));
+    } else if (state.isTerminalRidePhase) {
+      state = state.copyWith(clearMeter: true);
       unawaited(_stopLiveUpdates());
     }
   }
@@ -2530,6 +2762,443 @@ class RideBookingController extends Notifier<RideBookingState> {
     }
   }
 
+  /// REST Soft Meter snapshot after restore, reconnect, or foreground.
+  /// Never blocks booking/payment flow if the endpoint is unavailable.
+  Future<void> refreshMeterFromBackend() async {
+    final bookingId = state.bookingId;
+    if (bookingId == null || bookingId.isEmpty) return;
+    if (!state.isAssignedRidePhase) return;
+    if (_refreshingMeter) return;
+
+    _refreshingMeter = true;
+    try {
+      final snapshot = await ref
+          .read(rideBookingRepositoryProvider)
+          .bookingMeter(bookingId);
+      _commitMeterSnapshot(snapshot, authoritative: true, bookingId: bookingId);
+    } catch (_) {
+      // Keep last known meter; ride tracking must continue.
+    } finally {
+      _refreshingMeter = false;
+    }
+  }
+
+  void _applyMeterSocketEvent(Map<String, dynamic> event, String bookingId) {
+    if (state.bookingId != null &&
+        state.bookingId!.isNotEmpty &&
+        state.bookingId != bookingId) {
+      return;
+    }
+    if (state.isTerminalRidePhase) return;
+
+    final incoming = RidePlanningParsers.passengerMeter(event);
+    if (!incoming.belongsToBooking(bookingId)) return;
+    _commitMeterSnapshot(incoming, authoritative: false, bookingId: bookingId);
+  }
+
+  void _commitMeterSnapshot(
+    PassengerMeterSnapshot incoming, {
+    required bool authoritative,
+    required String bookingId,
+  }) {
+    if (state.bookingId != null &&
+        state.bookingId!.isNotEmpty &&
+        state.bookingId != bookingId) {
+      return;
+    }
+    if (!incoming.belongsToBooking(bookingId) && incoming.hasSession) {
+      return;
+    }
+
+    final current = state.meter;
+    final merged = current == null
+        ? (incoming.hasSession ? incoming : null)
+        : current.mergeIncoming(incoming, authoritative: authoritative);
+
+    if (identical(merged, current) || (merged == null && current == null)) {
+      return;
+    }
+
+    state = state.copyWith(meter: merged, clearMeter: merged == null);
+  }
+
+  Future<void> _handleCompletedRide(String bookingId) async {
+    await refreshMeterPayment(bookingId: bookingId);
+    final payment = state.meterPayment;
+    if (payment != null && payment.needsPayNow) {
+      state = state.copyWith(unpaidMeterPayment: payment);
+      return;
+    }
+    if (payment == null || !payment.hasRecord) {
+      state = state.copyWith(meterPaymentPreparing: true);
+      return;
+    }
+    if (!payment.needsPayNow) {
+      unawaited(_stopLiveUpdates());
+    }
+  }
+
+  Future<void> navigateAfterCompletedRide() async {
+    final bookingId = state.bookingId;
+    if (bookingId != null && bookingId.isNotEmpty) {
+      await refreshMeterPayment(bookingId: bookingId);
+    }
+    final payment = state.meterPayment;
+    if (payment != null && !payment.needsPayNow && payment.hasRecord) {
+      ref.read(goRouterProvider).go(RouteNames.home);
+      return;
+    }
+    if (state.usesSoftMeterUi ||
+        payment != null ||
+        (state.meter?.hasSession == true)) {
+      openMeterPayment(bookingId: bookingId ?? payment?.bookingId);
+      return;
+    }
+    ref.read(goRouterProvider).go(RouteNames.home);
+  }
+
+  void openMeterPayment({String? bookingId}) {
+    final id = (bookingId ??
+            state.meterPayment?.bookingId ??
+            state.unpaidMeterPayment?.bookingId ??
+            state.bookingId)
+        ?.trim();
+    if (id == null || id.isEmpty) {
+      ref.read(goRouterProvider).go(RouteNames.activity);
+      return;
+    }
+    if (state.bookingId != id) {
+      state = state.copyWith(bookingId: id);
+    }
+    unawaited(refreshMeterPayment(bookingId: id));
+    ref.read(goRouterProvider).go('${RouteNames.meterPayment}?bookingId=$id');
+  }
+
+  void deferMeterPaymentToHistory() {
+    final payment = state.meterPayment ?? state.unpaidMeterPayment;
+    if (payment != null && payment.needsPayNow) {
+      state = state.copyWith(unpaidMeterPayment: payment);
+    }
+    ref.read(goRouterProvider).go(RouteNames.activity);
+  }
+
+  Future<MeterPaymentRecord?> refreshMeterPayment({String? bookingId}) async {
+    final id = (bookingId ??
+            state.bookingId ??
+            state.meterPayment?.bookingId ??
+            state.unpaidMeterPayment?.bookingId)
+        ?.trim();
+    if (id == null || id.isEmpty) return state.meterPayment;
+    final epoch = ++_meterPaymentEpoch;
+    try {
+      final record = await ref
+          .read(rideBookingRepositoryProvider)
+          .meterPayment(id);
+      if (epoch != _meterPaymentEpoch) return state.meterPayment;
+      if (record == null || !record.hasRecord) {
+        state = state.copyWith(
+          meterPaymentPreparing: true,
+          clearMeterPaymentError: true,
+        );
+        return state.meterPayment;
+      }
+      _commitMeterPayment(record, authoritative: true);
+      if (_isTerminalMeterPayment(state.meterPayment)) {
+        state = state.copyWith(meterPaymentConfirming: false);
+      }
+      return state.meterPayment;
+    } catch (_) {
+      if (epoch != _meterPaymentEpoch) return state.meterPayment;
+      state = state.copyWith(
+        meterPaymentPreparing: true,
+        meterPaymentError: 'Could not load the metered fare yet.',
+      );
+      return state.meterPayment;
+    }
+  }
+
+  Future<void> recoverUnpaidMeterPayment() async {
+    if (_unpaidRecoveryInFlight) return;
+    _unpaidRecoveryInFlight = true;
+    try {
+      final record = await ref
+          .read(rideBookingRepositoryProvider)
+          .unpaidMeterPayment();
+      if (record == null || !record.hasRecord || !record.needsPayNow) {
+        if (state.unpaidMeterPayment != null &&
+            (record == null || !record.needsPayNow)) {
+          state = state.copyWith(clearUnpaidMeterPayment: true);
+        }
+        return;
+      }
+      final activeId = state.bookingId;
+      if (state.hasActiveBooking &&
+          activeId != null &&
+          record.bookingId != null &&
+          record.bookingId != activeId) {
+        state = state.copyWith(unpaidMeterPayment: record);
+        return;
+      }
+      _commitMeterPayment(record, authoritative: true);
+      state = state.copyWith(unpaidMeterPayment: state.meterPayment ?? record);
+    } catch (_) {
+      // Keep last known unpaid reminder; REST on resume retries.
+    } finally {
+      _unpaidRecoveryInFlight = false;
+    }
+  }
+
+  Future<void> refreshMeterPaymentOnResume() async {
+    if (state.meterPaymentConfirming) {
+      state = state.copyWith(meterPaymentConfirming: false);
+    }
+    await refreshMeterPayment();
+    await recoverUnpaidMeterPayment();
+  }
+
+  Future<bool> startMeterCheckout({String? bookingId}) async {
+    final id = (bookingId ??
+            state.meterPayment?.bookingId ??
+            state.unpaidMeterPayment?.bookingId ??
+            state.bookingId)
+        ?.trim();
+    if (id == null || id.isEmpty) return false;
+    if (_meterCheckoutInFlight ||
+        state.isStartingMeterCheckout ||
+        state.meterPaymentConfirming) {
+      return false;
+    }
+    final current = state.meterPayment ?? state.unpaidMeterPayment;
+    if (current?.isMeterUnresolved == true ||
+        (current != null && !current.hasFinalFare)) {
+      state = state.copyWith(
+        meterPaymentError: SoftMeterPaymentCopy.unresolved,
+      );
+      return false;
+    }
+    if (current != null && !current.needsPayNow) {
+      return false;
+    }
+
+    _meterCheckoutInFlight = true;
+    state = state.copyWith(
+      isStartingMeterCheckout: true,
+      clearMeterPaymentError: true,
+    );
+    try {
+      final session = await ref
+          .read(rideBookingRepositoryProvider)
+          .createMeterPaymentIntent(id);
+      final record = session.record;
+      if (record != null && record.hasRecord) {
+        _commitMeterPayment(record, authoritative: true);
+      }
+      final latest = state.meterPayment;
+      if (latest?.isPaid == true || latest?.isRefunded == true) {
+        return latest?.isPaid == true;
+      }
+      if (latest?.isMeterUnresolved == true || latest?.needsPayNow == false) {
+        if (latest?.isMeterUnresolved == true) {
+          state = state.copyWith(
+            meterPaymentError: SoftMeterPaymentCopy.unresolved,
+          );
+        }
+        return false;
+      }
+
+      final secret = session.clientSecret?.trim() ?? '';
+      if (secret.isEmpty) {
+        await refreshMeterPayment(bookingId: id);
+        if (state.meterPayment?.isPaid == true) return true;
+        state = state.copyWith(
+          meterPaymentError: 'Payment is unavailable. Try again.',
+        );
+        return false;
+      }
+      if (session.record?.productionCharge == true ||
+          session.publishableKey?.startsWith('pk_live') == true) {
+        state = state.copyWith(
+          meterPaymentError: 'Metered card charging is not enabled.',
+        );
+        return false;
+      }
+
+      final ready = await _ensureMeterStripeReady(session);
+      if (!ready) {
+        state = state.copyWith(
+          meterPaymentError: CardBookingPayment.unavailableMessage,
+        );
+        return false;
+      }
+
+      StripeDebug.log('meter PaymentSheet presenting');
+      final outcome = await ref
+          .read(stripePaymentGatewayProvider)
+          .presentPaymentSheet(
+            clientSecret: secret,
+            merchantDisplayName: RyduPayments.merchantDisplayName,
+          );
+
+      if (outcome == StripeSheetOutcome.canceled) {
+        await refreshMeterPayment(bookingId: id);
+        if (state.meterPayment?.isPaid == true) return true;
+        state = state.copyWith(
+          meterPaymentError:
+              'Payment was cancelled. The ride stays unpaid.',
+        );
+        return false;
+      }
+      if (outcome == StripeSheetOutcome.failed) {
+        await refreshMeterPayment(bookingId: id);
+        if (state.meterPayment?.isPaid == true) return true;
+        state = state.copyWith(
+          meterPaymentError: 'Payment failed. Try again.',
+        );
+        return false;
+      }
+
+      // Sheet success is not Paid. Poll the backend until it confirms.
+      await _confirmMeterPaymentSettlement(id);
+      return true;
+    } catch (e) {
+      state = state.copyWith(
+        meterPaymentError: e is PassengerApiException
+            ? e.message
+            : 'Could not start payment. Try again.',
+      );
+      return false;
+    } finally {
+      _meterCheckoutInFlight = false;
+      state = state.copyWith(isStartingMeterCheckout: false);
+    }
+  }
+
+  /// Bounded reads after PaymentSheet success. Does not create a PaymentIntent.
+  Future<void> _confirmMeterPaymentSettlement(String bookingId) async {
+    state = state.copyWith(
+      meterPaymentConfirming: true,
+      clearMeterPaymentError: true,
+    );
+    const delaysMs = <int>[0, 400, 800, 1600, 3200];
+    final delay = ref.read(paymentPollDelayProvider);
+    for (var attempt = 0; attempt < delaysMs.length; attempt++) {
+      if (attempt > 0) {
+        await delay(Duration(milliseconds: delaysMs[attempt]));
+      }
+      if (!state.meterPaymentConfirming) return;
+      final epoch = ++_meterPaymentEpoch;
+      try {
+        final record = await ref
+            .read(rideBookingRepositoryProvider)
+            .meterPayment(bookingId);
+        if (epoch != _meterPaymentEpoch) return;
+        if (record != null && record.hasRecord) {
+          _commitMeterPayment(record, authoritative: true);
+        }
+      } on PassengerApiException catch (e) {
+        if (epoch != _meterPaymentEpoch) return;
+        if (e.statusCode == 429) {
+          final wait = e.retryAfter ??
+              Duration(milliseconds: delaysMs[attempt] == 0 ? 400 : delaysMs[attempt]);
+          await delay(wait);
+        }
+        continue;
+      } catch (_) {
+        if (epoch != _meterPaymentEpoch) return;
+        continue;
+      }
+      final latest = state.meterPayment;
+      if (_isTerminalMeterPayment(latest)) {
+        state = state.copyWith(
+          meterPaymentConfirming: false,
+          clearMeterPaymentError: true,
+        );
+        return;
+      }
+    }
+    if (state.meterPayment?.isPaid == true) {
+      state = state.copyWith(meterPaymentConfirming: false);
+      return;
+    }
+    state = state.copyWith(
+      meterPaymentConfirming: true,
+      meterPaymentError: SoftMeterPaymentCopy.confirmingUnavailable,
+    );
+  }
+
+  bool _isTerminalMeterPayment(MeterPaymentRecord? record) {
+    if (record == null) return false;
+    return record.isPaid ||
+        record.isRefunded ||
+        record.isFailed ||
+        record.isMeterUnresolved;
+  }
+
+  Future<MeterPaymentRecord?> fetchMeterReceipt({String? bookingId}) async {
+    final id = (bookingId ??
+            state.meterPayment?.bookingId ??
+            state.bookingId)
+        ?.trim();
+    if (id == null || id.isEmpty) return null;
+    try {
+      final record = await ref
+          .read(rideBookingRepositoryProvider)
+          .meterPaymentReceipt(id);
+      if (record == null || !record.hasRecord) return state.meterReceipt;
+      if (record.receiptAvailable != true && !record.isPaid) {
+        state = state.copyWith(meterReceipt: record);
+        return record;
+      }
+      _commitMeterPayment(record, authoritative: true);
+      state = state.copyWith(meterReceipt: record);
+      return record;
+    } catch (_) {
+      return state.meterReceipt;
+    }
+  }
+
+  void _applyMeterPaymentSocketEvent(Map<String, dynamic> event) {
+    final incoming = RidePlanningParsers.meterPayment(event);
+    if (incoming == null || !incoming.hasRecord) return;
+    final activeId =
+        state.bookingId ??
+        state.meterPayment?.bookingId ??
+        state.unpaidMeterPayment?.bookingId;
+    if (!incoming.belongsToBooking(activeId) &&
+        incoming.bookingId != state.unpaidMeterPayment?.bookingId) {
+      return;
+    }
+    _commitMeterPayment(incoming, authoritative: false);
+  }
+
+  void _commitMeterPayment(
+    MeterPaymentRecord incoming, {
+    required bool authoritative,
+  }) {
+    final current = state.meterPayment;
+    final merged = current == null
+        ? incoming
+        : current.mergeIncoming(incoming, authoritative: authoritative);
+    if (merged == null) return;
+
+    var unpaid = state.unpaidMeterPayment;
+    if (unpaid != null && unpaid.bookingId == merged.bookingId) {
+      unpaid = merged.needsPayNow ? merged : null;
+    } else if (merged.needsPayNow) {
+      unpaid = merged;
+    }
+
+    final terminal = _isTerminalMeterPayment(merged);
+    state = state.copyWith(
+      meterPayment: merged,
+      unpaidMeterPayment: unpaid,
+      clearUnpaidMeterPayment: unpaid == null,
+      meterPaymentPreparing: !merged.hasFinalFare && merged.needsPayNow,
+      meterPaymentConfirming: terminal ? false : null,
+      clearMeterPaymentError: true,
+    );
+  }
+
   void _applyDriverLocation(DriverLocationEntity location, String bookingId) {
     if (location.bookingId != bookingId) return;
     if (state.isTerminalRidePhase) return;
@@ -2661,7 +3330,38 @@ class RideBookingController extends Notifier<RideBookingState> {
           : state.searchStartedAt,
       recordingConsentInfo:
           booking.recordingConsent ?? state.recordingConsentInfo,
+      meterPayment: booking.meterPayment ?? state.meterPayment,
+      // Booking-create / booking-detail billing fields override prior quote.
+      billingMode: booking.billingMode != BookingBillingMode.unknown
+          ? booking.billingMode
+          : state.billingMode,
+      paymentRequiredBeforeDispatch: booking.paymentRequiredBeforeDispatch ??
+          state.paymentRequiredBeforeDispatch,
+      paymentRequiredAfterCompletion:
+          booking.paymentRequiredAfterCompletion ??
+          state.paymentRequiredAfterCompletion,
+      fareClassification:
+          booking.fareClassification ?? state.fareClassification,
+      clearMeter:
+          !sameBooking ||
+          nextPhase == RidePlanningPhase.cancelled ||
+          nextPhase == RidePlanningPhase.expired ||
+          nextPhase == RidePlanningPhase.noDrivers,
     );
+    if (booking.meterPayment != null) {
+      _commitMeterPayment(booking.meterPayment!, authoritative: true);
+    } else if (booking.isMeterUnresolved) {
+      state = state.copyWith(
+        meterPayment: MeterPaymentRecord(
+          bookingId: booking.id,
+          paymentStatus: MeterPaymentStatus.meterUnresolved,
+          paymentStatusRaw: booking.paymentStatus,
+          paymentRequired: false,
+          fareClassification: booking.fareClassification,
+          paymentMode: booking.billingMode.wireValue,
+        ),
+      );
+    }
     _syncRecordingConsentFromInfo(
       booking.recordingConsent ?? state.recordingConsentInfo,
       phase: nextPhase,
@@ -2771,6 +3471,17 @@ class RideBookingController extends Notifier<RideBookingState> {
       clearBookingPayment: true,
       clearPaymentClientSecret: true,
       isResolvingPayment: false,
+      clearMeter: true,
+      clearMeterPayment: true,
+      clearUnpaidMeterPayment: true,
+      clearMeterReceipt: true,
+      meterPaymentPreparing: false,
+      isStartingMeterCheckout: false,
+      clearMeterPaymentError: true,
+      billingMode: BookingBillingMode.unknown,
+      clearPaymentRequiredBeforeDispatch: true,
+      clearPaymentRequiredAfterCompletion: true,
+      clearFareClassification: true,
     );
   }
 
@@ -2822,6 +3533,28 @@ class RideBookingController extends Notifier<RideBookingState> {
     }
   }
 
+  /// Prefer the PaymentIntent publishable key. Fall back to payments config.
+  Future<bool> _ensureMeterStripeReady(MeterPaymentIntentResult session) async {
+    final key = session.publishableKey?.trim() ?? '';
+    if (key.startsWith('pk_test')) {
+      StripeDebug.lastPublishableKeyValid = true;
+      StripeDebug.log(
+        'publishableKeyMode=${StripeDebug.publishableKeyMode(key)}',
+      );
+      final ready = await ref
+          .read(stripePaymentGatewayProvider)
+          .initialize(publishableKey: key);
+      StripeDebug.lastStripeSdkInitialized = ready;
+      state = state.copyWith(stripeReady: ready);
+      if (!ready) {
+        StripeDebug.lastUnavailableReason = 'Stripe SDK initialization failed';
+      }
+      return ready;
+    }
+    if (state.stripeReady) return true;
+    return _loadPaymentConfigQuietly();
+  }
+
   Future<bool> _loadPaymentConfigQuietly() async {
     try {
       final config = await ref
@@ -2868,12 +3601,19 @@ class RideBookingController extends Notifier<RideBookingState> {
 
   bool _bookingNeedsCardAuthorization(CreateBookingResult result) {
     final booking = result.booking;
+    // Booking-create billing fields are authoritative over the prior quote.
+    if (booking.skipsUpfrontCardAuthorization) return false;
+    if (booking.paymentRequiredBeforeDispatch == false &&
+        booking.isMeteredPostTrip) {
+      return false;
+    }
     final payment = result.payment;
     final isCard =
         isCardPaymentMethodCode(booking.paymentMethodCode) ||
         isCardPaymentMethodCode(state.paymentMethodCode) ||
         (payment != null && payment.isCard);
     if (!isCard) return false;
+    if (booking.paymentRequiredBeforeDispatch == true) return true;
     if (booking.status.toLowerCase() == 'quoted') return true;
     if (payment != null && payment.needsPayment) return true;
     return false;

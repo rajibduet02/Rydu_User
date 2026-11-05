@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/widgets/app_logo.dart';
 import '../providers/payment_method_provider.dart';
 import '../../../ride_booking/domain/entities/ride_planning_entities.dart';
 import '../../../ride_booking/presentation/providers/ride_booking_provider.dart';
@@ -393,21 +394,15 @@ class RyduBalanceCard extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 36,
+            width: 72,
             height: 36,
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
             decoration: BoxDecoration(
               color: PaymentMethodModalTokens.logoBlack,
               borderRadius: BorderRadius.circular(6),
             ),
             alignment: Alignment.center,
-            child: Text(
-              'RYD U',
-              style: TextStyle(
-                color: PaymentMethodModalTokens.white,
-                fontSize: (w * 0.022).clamp(8.0, 9.0),
-                fontWeight: FontWeight.w800,
-              ),
-            ),
+            child: const AppLogo(),
           ),
           const SizedBox(width: 12),
           Expanded(

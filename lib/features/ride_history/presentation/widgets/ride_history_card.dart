@@ -10,10 +10,12 @@ class RideHistoryCard extends StatelessWidget {
     super.key,
     required this.booking,
     required this.onTap,
+    this.onPayNow,
   });
 
   final BookingEntity booking;
   final VoidCallback onTap;
+  final VoidCallback? onPayNow;
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +31,8 @@ class RideHistoryCard extends StatelessWidget {
         ? null
         : RideHistoryPresentation.formatTimestamp(timestamp);
     final service = RideHistoryPresentation.serviceLabel(booking);
-    final fare = booking.formattedFare;
+    final fare = booking.passengerFacingFare;
+    final payment = booking.meterPayment;
     final extra = RideHistoryPresentation.distanceDurationLabel(booking);
 
     return Material(
@@ -111,6 +114,34 @@ class RideHistoryCard extends StatelessWidget {
                       ),
                   ],
                 ),
+                if (booking.isMeterUnresolved ||
+                    (payment != null && payment.isMetered)) ...[
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      _StatusChip(
+                        label: booking.isMeterUnresolved
+                            ? 'Fare under review'
+                            : payment!.passengerStatusLabel,
+                        color: payment?.isPaid == true
+                            ? RideHistoryTokens.success
+                            : booking.isMeterUnresolved ||
+                                  payment?.isRefunded == true
+                            ? RideHistoryTokens.muted
+                            : RideHistoryTokens.warning,
+                      ),
+                      if (onPayNow != null &&
+                          payment?.needsPayNow == true &&
+                          !booking.isMeterUnresolved) ...[
+                        const Spacer(),
+                        TextButton(
+                          onPressed: onPayNow,
+                          child: const Text('Pay Now'),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
               ],
             ),
           ),

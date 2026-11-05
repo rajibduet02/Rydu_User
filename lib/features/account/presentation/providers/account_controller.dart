@@ -55,6 +55,7 @@ class AccountController extends Notifier<AccountState> {
       await ref.read(passengerSocketServiceProvider).disconnect();
       ref.read(authSessionProvider.notifier).markUnauthenticated();
       ref.read(passengerProfileControllerProvider.notifier).clear();
+      ref.read(rideBookingControllerProvider.notifier).resetPlanningSession();
       ref.invalidate(rideHistoryControllerProvider);
       state = const AccountState();
     } on AuthException catch (e) {

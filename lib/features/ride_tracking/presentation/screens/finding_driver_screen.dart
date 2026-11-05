@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/router/route_names.dart';
+import '../../../ride_booking/domain/entities/meter_payment_entities.dart';
 import '../../../ride_booking/domain/entities/ride_option_entity.dart';
 import '../../../ride_booking/presentation/models/ride_flow_extra.dart';
 import '../../../ride_booking/presentation/providers/ride_booking_provider.dart';
@@ -301,7 +302,9 @@ class _FindingDriverScreenState extends ConsumerState<FindingDriverScreen> {
                                 : (state.pickupLocation.isNotEmpty
                                       ? state.pickupLocation
                                       : 'Pickup'),
-                            fareLabel: state.estimatedFare,
+                            fareLabel: state.usesSoftMeterUi
+                                ? SoftMeterPaymentCopy.beforeTrip
+                                : state.estimatedFare,
                           ),
                           if (state.errorMessage != null) ...[
                             const SizedBox(height: 16),

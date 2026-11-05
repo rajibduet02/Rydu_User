@@ -7,6 +7,7 @@ import '../../../../core/network/passenger_api_error_mapper.dart';
 import '../../../ride_booking/domain/entities/ride_planning_entities.dart';
 import '../../../ride_booking/presentation/providers/ride_booking_provider.dart';
 import '../../domain/ride_history_filter.dart';
+import '../ride_history_presentation.dart';
 import 'ride_history_dependencies.dart';
 
 class RideHistoryState {
@@ -165,7 +166,18 @@ class RideHistoryController extends Notifier<RideHistoryState> {
       clearDetail: true,
     );
     try {
-      final booking = await ref.read(getRideDetailsUsecaseProvider).call(id);
+      var booking = await ref.read(getRideDetailsUsecaseProvider).call(id);
+      if (booking != null &&
+          RideHistoryPresentation.isCompleted(booking.status)) {
+        try {
+          final payment = await ref
+              .read(rideBookingRepositoryProvider)
+              .meterPayment(id);
+          if (payment != null && payment.hasRecord) {
+            booking = booking.copyWith(meterPayment: payment);
+          }
+        } catch (_) {}
+      }
       state = state.copyWith(
         detail: booking,
         isLoadingDetail: false,

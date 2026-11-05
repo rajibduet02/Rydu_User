@@ -36,6 +36,10 @@ class PassengerSocketService {
       StreamController<DriverLocationEntity>.broadcast();
   final _recordingEventController =
       StreamController<Map<String, dynamic>>.broadcast();
+  final _meterEventController =
+      StreamController<Map<String, dynamic>>.broadcast();
+  final _meterPaymentEventController =
+      StreamController<Map<String, dynamic>>.broadcast();
   final _authenticatedController = StreamController<bool>.broadcast();
   final _connectionStatusController =
       StreamController<PassengerSocketConnectionStatus>.broadcast();
@@ -46,6 +50,10 @@ class PassengerSocketService {
       _driverLocationController.stream;
   Stream<Map<String, dynamic>> get recordingEventStream =>
       _recordingEventController.stream;
+  Stream<Map<String, dynamic>> get meterEventStream =>
+      _meterEventController.stream;
+  Stream<Map<String, dynamic>> get meterPaymentEventStream =>
+      _meterPaymentEventController.stream;
   Stream<bool> get authenticatedStream => _authenticatedController.stream;
   Stream<PassengerSocketConnectionStatus> get connectionStatusStream =>
       _connectionStatusController.stream;
@@ -118,6 +126,12 @@ class PassengerSocketService {
       socket.on(
         'recording:session_available',
         (data) => _emitRecording('recording:session_available', data),
+      );
+      socket.on('meter:state', (data) => _emitMeter('meter:state', data));
+      socket.on('meter:fare', (data) => _emitMeter('meter:fare', data));
+      socket.on(
+        'booking:meter_payment',
+        (data) => _emitMeterPayment(data),
       );
       socket.on('driver:location', (data) {
         final location = RidePlanningParsers.driverLocation(data);
@@ -200,6 +214,63 @@ class PassengerSocketService {
     }
   }
 
+  void _emitMeter(String event, dynamic data) {
+    final map = <String, dynamic>{'event': event};
+    if (data is Map) {
+      map.addAll(Map<String, dynamic>.from(data));
+    } else if (data != null) {
+      map['payload'] = data;
+    }
+    final nested = map['meter'];
+    if (nested is Map) {
+      map['bookingId'] ??=
+          nested['bookingId'] ?? nested['booking_id'];
+      map['sessionId'] ??=
+          nested['sessionId'] ?? nested['session_id'] ?? nested['id'];
+      map['stateVersion'] ??=
+          nested['stateVersion'] ?? nested['state_version'];
+    }
+    final bookingId =
+        map['bookingId']?.toString() ?? map['booking_id']?.toString();
+    if (_activeBookingId != null &&
+        bookingId != null &&
+        bookingId.isNotEmpty &&
+        bookingId != _activeBookingId) {
+      return;
+    }
+    if (!_meterEventController.isClosed) {
+      _meterEventController.add(map);
+    }
+  }
+
+  void _emitMeterPayment(dynamic data) {
+    final map = <String, dynamic>{'event': 'booking:meter_payment'};
+    if (data is Map) {
+      map.addAll(Map<String, dynamic>.from(data));
+    } else if (data != null) {
+      map['payload'] = data;
+    }
+    final nested = map['meterPayment'] ?? map['meter_payment'];
+    if (nested is Map) {
+      map['bookingId'] ??= nested['bookingId'] ?? nested['booking_id'];
+      map['paymentVersion'] ??=
+          nested['paymentVersion'] ?? nested['payment_version'];
+      map['paymentStatus'] ??=
+          nested['paymentStatus'] ?? nested['payment_status'];
+    }
+    final bookingId =
+        map['bookingId']?.toString() ?? map['booking_id']?.toString();
+    if (_activeBookingId != null &&
+        bookingId != null &&
+        bookingId.isNotEmpty &&
+        bookingId != _activeBookingId) {
+      return;
+    }
+    if (!_meterPaymentEventController.isClosed) {
+      _meterPaymentEventController.add(map);
+    }
+  }
+
   Future<void> disconnect({bool preserveActiveBooking = false}) async {
     final socket = _socket;
     _socket = null;
@@ -220,6 +291,8 @@ class PassengerSocketService {
     await _bookingStatusController.close();
     await _driverLocationController.close();
     await _recordingEventController.close();
+    await _meterEventController.close();
+    await _meterPaymentEventController.close();
     await _authenticatedController.close();
     await _connectionStatusController.close();
   }

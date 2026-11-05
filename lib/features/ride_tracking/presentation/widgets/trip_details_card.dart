@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../ride_booking/domain/entities/meter_payment_entities.dart';
 import '../../../ride_booking/presentation/theme/ride_booking_tokens.dart';
 
 class TripDetailsCard extends StatelessWidget {
@@ -10,6 +11,7 @@ class TripDetailsCard extends StatelessWidget {
     required this.rideId,
     required this.paymentMethod,
     required this.estimatedFare,
+    this.hideQuotedFare = false,
     required this.onShareTrip,
     required this.onCancelRide,
   });
@@ -19,6 +21,7 @@ class TripDetailsCard extends StatelessWidget {
   final String rideId;
   final String paymentMethod;
   final String estimatedFare;
+  final bool hideQuotedFare;
   final VoidCallback onShareTrip;
   final VoidCallback onCancelRide;
 
@@ -79,7 +82,9 @@ class TripDetailsCard extends StatelessWidget {
               _TripRow(
                 leading: const Text('👤', style: TextStyle(fontSize: 20)),
                 title: rideId,
-                subtitle: 'Use $paymentMethod $estimatedFare',
+                subtitle: hideQuotedFare
+                    ? 'Use $paymentMethod · ${SoftMeterPaymentCopy.beforeTrip}'
+                    : 'Booking quote · Use $paymentMethod $estimatedFare',
                 trailing: const Text(
                   'Switch',
                   style: TextStyle(

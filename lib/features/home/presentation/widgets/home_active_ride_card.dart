@@ -103,7 +103,8 @@ class HomeActiveRideCard extends ConsumerWidget {
                   ),
                 ),
               ],
-              if (state.estimatedFare != null &&
+              if (!state.usesSoftMeterUi &&
+                  state.estimatedFare != null &&
                   state.estimatedFare!.trim().isNotEmpty) ...[
                 const SizedBox(height: 4),
                 Text(

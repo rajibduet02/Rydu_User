@@ -27,6 +27,21 @@ abstract final class PassengerApiPaths {
       '$_p/bookings/$bookingId/cancel';
   static String recordingConsent(String bookingId) =>
       '$_p/bookings/$bookingId/recording-consent';
+  static String bookingMeter(String bookingId) =>
+      '$_p/bookings/$bookingId/meter';
+  static String bookingMeterPayment(String bookingId) =>
+      '$_p/bookings/$bookingId/meter-payment';
+  static String bookingMeterPaymentCheckout(String bookingId) =>
+      '$_p/bookings/$bookingId/meter-payment/checkout';
+
+  /// Completed On-Demand meter fare. Empty JSON body. Returns a PaymentIntent
+  /// client secret for the in-app PaymentSheet. Flutter never sends an amount.
+  static String bookingMeterPaymentIntent(String bookingId) =>
+      '$_p/bookings/$bookingId/meter-payment/payment-intent';
+  static String bookingMeterPaymentReceipt(String bookingId) =>
+      '$_p/bookings/$bookingId/meter-payment/receipt';
+  static String get unpaidMeterPayment =>
+      '$_p/bookings/unpaid-meter-payment';
 
   static String get profile => '$_p/profile';
   static String get profileAvatar => '$_p/profile/avatar';

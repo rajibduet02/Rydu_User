@@ -12,6 +12,7 @@ import '../../data/repositories/ride_booking_repository_impl.dart';
 import '../../data/repositories/service_area_repository_impl.dart';
 import '../../domain/service_area/service_area_models.dart';
 import '../../data/services/stripe_payment_gateway.dart';
+import '../../domain/meter_checkout_launcher.dart';
 import '../../domain/repositories/ride_booking_repository.dart';
 import '../../domain/usecases/confirm_pickup_usecase.dart';
 import '../../domain/usecases/confirm_ride_usecase.dart';
@@ -73,6 +74,10 @@ final rideBookingRepositoryProvider = Provider<RideBookingRepository>((ref) {
 
 final stripePaymentGatewayProvider = Provider<StripePaymentGateway>((ref) {
   return FlutterStripePaymentGateway();
+});
+
+final meterCheckoutLauncherProvider = Provider<MeterCheckoutLauncher>((ref) {
+  return const UrlLauncherMeterCheckoutLauncher();
 });
 
 typedef PaymentPollDelay = Future<void> Function(Duration duration);

@@ -7,6 +7,7 @@ import '../../../features/ride_booking/presentation/screens/confirm_pickup_scree
 import '../../../features/ride_booking/presentation/screens/ride_booking_screen.dart';
 import '../../../features/ride_booking/presentation/screens/ride_selection_screen.dart';
 import '../../../features/ride_booking/presentation/models/ride_booking_route_args.dart';
+import '../../../features/ride_booking/presentation/screens/meter_payment_screen.dart';
 import '../../../features/ride_history/presentation/screens/ride_details_screen.dart';
 import '../../../features/ride_history/presentation/screens/ride_history_screen.dart';
 import '../../../features/ride_tracking/presentation/screens/driver_found_screen.dart';
@@ -104,6 +105,13 @@ List<RouteBase> get rideRoutes => [
     builder: (context, state) {
       final rideId = state.uri.queryParameters['rideId'];
       return RideDetailsScreen(rideId: rideId);
+    },
+  ),
+  GoRoute(
+    path: RouteNames.meterPayment,
+    builder: (context, state) {
+      final bookingId = state.uri.queryParameters['bookingId'];
+      return MeterPaymentScreen(bookingId: bookingId);
     },
   ),
   GoRoute(

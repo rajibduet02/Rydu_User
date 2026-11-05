@@ -11,6 +11,7 @@ import '../../../ride_booking/presentation/providers/ride_booking_provider.dart'
 import '../providers/home_controller.dart';
 import '../theme/home_screen_tokens.dart';
 import '../widgets/home_active_ride_card.dart';
+import '../widgets/home_unpaid_meter_card.dart';
 import '../widgets/home_promo_card.dart';
 import '../widgets/home_search_bar.dart';
 import '../widgets/home_top_bar.dart';
@@ -59,6 +60,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
       await ref
           .read(rideBookingControllerProvider.notifier)
           .restoreActiveBooking(navigate: false);
+      await ref
+          .read(rideBookingControllerProvider.notifier)
+          .refreshMeterPaymentOnResume();
     } catch (_) {
       // Keep browsing Home; card appears if restore succeeds later.
     }
@@ -123,6 +127,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
             if (ride.hasActiveBooking) ...[
               const SizedBox(height: 16),
               const HomeActiveRideCard(),
+            ],
+            if (ride.shouldShowUnpaidMeterReminder) ...[
+              const SizedBox(height: 16),
+              const HomeUnpaidMeterCard(),
             ],
             if (s.errorMessage != null) ...[
               const SizedBox(height: 8),

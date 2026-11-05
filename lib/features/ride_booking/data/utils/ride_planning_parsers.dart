@@ -263,6 +263,32 @@ abstract final class RidePlanningParsers {
       airportFee: airportFee < 0 ? 0 : airportFee,
       airport: airportInfo(map['airport'] ?? fareNested?['airport']) ??
           defaultAirport,
+      billingMode: BookingBillingModeParsing.fromRaw(
+        asNonEmptyString(
+          map['billingMode'] ??
+              map['billing_mode'] ??
+              fareNested?['billingMode'] ??
+              fareNested?['billing_mode'],
+        ),
+      ),
+      paymentRequiredBeforeDispatch: asBool(
+        map['paymentRequiredBeforeDispatch'] ??
+            map['payment_required_before_dispatch'] ??
+            fareNested?['paymentRequiredBeforeDispatch'] ??
+            fareNested?['payment_required_before_dispatch'],
+      ),
+      paymentRequiredAfterCompletion: asBool(
+        map['paymentRequiredAfterCompletion'] ??
+            map['payment_required_after_completion'] ??
+            fareNested?['paymentRequiredAfterCompletion'] ??
+            fareNested?['payment_required_after_completion'],
+      ),
+      fareClassification: asNonEmptyString(
+        map['fareClassification'] ??
+            map['fare_classification'] ??
+            fareNested?['fareClassification'] ??
+            fareNested?['fare_classification'],
+      ),
     );
   }
 
@@ -736,6 +762,21 @@ abstract final class RidePlanningParsers {
             map['cancelReason'] ??
             timestamps?['cancellationReason'],
       ),
+      meterPayment: meterPayment(map['meterPayment'] ?? map['meter_payment']),
+      billingMode: BookingBillingModeParsing.fromRaw(
+        asNonEmptyString(map['billingMode'] ?? map['billing_mode']),
+      ),
+      paymentRequiredBeforeDispatch: asBool(
+        map['paymentRequiredBeforeDispatch'] ??
+            map['payment_required_before_dispatch'],
+      ),
+      paymentRequiredAfterCompletion: asBool(
+        map['paymentRequiredAfterCompletion'] ??
+            map['payment_required_after_completion'],
+      ),
+      fareClassification: asNonEmptyString(
+        map['fareClassification'] ?? map['fare_classification'],
+      ),
     );
   }
 
@@ -778,5 +819,573 @@ abstract final class RidePlanningParsers {
       accuracyMeters: asDouble(map['accuracyMeters']),
       timestamp: asNonEmptyString(map['timestamp']),
     );
+  }
+
+  /// GET `/passenger/bookings/:id/meter` and `meter:state` / `meter:fare`.
+  ///
+  /// Reads only documented backend keys (camelCase and snake_case). `meter: null`
+  /// is a valid empty session. Missing optional fields stay null.
+  static PassengerMeterSnapshot passengerMeter(dynamic raw) {
+    if (raw is! Map) return PassengerMeterSnapshot.empty;
+    final root = Map<String, dynamic>.from(raw);
+    final nestedMeter = root['meter'];
+    if (nestedMeter == null && root.containsKey('meter')) {
+      return PassengerMeterSnapshot(
+        bookingId: asNonEmptyString(
+          root['bookingId'] ?? root['booking_id'],
+        ),
+        quotedFareUnchanged: asBool(
+          root['quotedFareUnchanged'] ?? root['quoted_fare_unchanged'],
+        ),
+        settlement: meterSettlement(root['settlement']),
+      );
+    }
+
+    final meterMap = asMap(nestedMeter) ??
+        asMap(root['session']) ??
+        asMap(root['meterSession']) ??
+        asMap(root['meter_session']) ??
+        root;
+    final fareMap = asMap(meterMap['fare']) ??
+        asMap(meterMap['fareBreakdown']) ??
+        asMap(meterMap['fare_breakdown']) ??
+        asMap(root['fareBreakdown']) ??
+        asMap(root['fare_breakdown']) ??
+        asMap(root['fare']);
+    final fareLooksLikeBreakdown = fareMap != null &&
+        (fareMap.containsKey('flagDropCents') ||
+            fareMap.containsKey('flag_drop_cents') ||
+            fareMap.containsKey('distanceChargeCents') ||
+            fareMap.containsKey('distance_charge_cents') ||
+            fareMap.containsKey('waitingChargeCents') ||
+            fareMap.containsKey('waiting_charge_cents') ||
+            fareMap.containsKey('totalCents') ||
+            fareMap.containsKey('total_cents'));
+    final fareMoney = _meterMoney(
+      fareMap?['provisionalFare'] ??
+          fareMap?['provisional_fare'] ??
+          (fareLooksLikeBreakdown ? null : fareMap?['amount']) ??
+          meterMap['provisionalFare'] ??
+          meterMap['provisional_fare'] ??
+          meterMap['frozenFare'] ??
+          meterMap['frozen_fare'] ??
+          (meterMap['fare'] is Map ? null : meterMap['fare']) ??
+          root['provisionalFare'] ??
+          root['provisional_fare'] ??
+          (root['fare'] is Map ? null : root['fare']),
+    );
+
+    return PassengerMeterSnapshot(
+      bookingId: asNonEmptyString(
+        meterMap['bookingId'] ??
+            meterMap['booking_id'] ??
+            root['bookingId'] ??
+            root['booking_id'],
+      ),
+      sessionId: asNonEmptyString(
+        meterMap['sessionId'] ??
+            meterMap['session_id'] ??
+            meterMap['id'] ??
+            meterMap['meterSessionId'] ??
+            meterMap['meter_session_id'] ??
+            root['sessionId'] ??
+            root['session_id'],
+      ),
+      sessionType: asNonEmptyString(
+        meterMap['sessionType'] ??
+            meterMap['session_type'] ??
+            meterMap['origin'] ??
+            meterMap['meterType'] ??
+            meterMap['meter_type'] ??
+            root['sessionType'] ??
+            root['session_type'] ??
+            root['origin'],
+      ),
+      status: SoftMeterStatusParsing.fromRaw(
+        asNonEmptyString(
+          meterMap['status'] ?? root['status'] ?? meterMap['meterStatus'],
+        ),
+      ),
+      stateVersion: asInt(
+        meterMap['stateVersion'] ??
+            meterMap['state_version'] ??
+            root['stateVersion'] ??
+            root['state_version'],
+      ),
+      fareFrozen: asBool(
+        meterMap['fareFrozen'] ??
+            meterMap['fare_frozen'] ??
+            root['fareFrozen'] ??
+            root['fare_frozen'],
+      ),
+      reviewRequired: asBool(
+        meterMap['reviewRequired'] ??
+            meterMap['review_required'] ??
+            root['reviewRequired'] ??
+            root['review_required'],
+      ),
+      provisionalFare: fareMoney.amount,
+      currency: fareMoney.currency ??
+          asNonEmptyString(
+            meterMap['currency'] ?? root['currency'],
+          ),
+      traveledDistanceMiles: asDouble(
+        meterMap['traveledDistanceMiles'] ??
+            meterMap['traveled_distance_miles'] ??
+            meterMap['distanceMiles'] ??
+            meterMap['distance_miles'] ??
+            meterMap['traveledMiles'] ??
+            meterMap['traveled_miles'] ??
+            root['traveledDistanceMiles'] ??
+            root['traveled_distance_miles'],
+      ),
+      tripElapsedSeconds: _elapsedSeconds(
+        meterMap['tripElapsedSeconds'] ??
+            meterMap['trip_elapsed_seconds'] ??
+            meterMap['tripElapsedTime'] ??
+            meterMap['trip_elapsed_time'] ??
+            root['tripElapsedSeconds'] ??
+            root['trip_elapsed_seconds'],
+      ),
+      chargeableElapsedSeconds: _elapsedSeconds(
+        meterMap['chargeableElapsedSeconds'] ??
+            meterMap['chargeable_elapsed_seconds'] ??
+            meterMap['chargeableElapsedTime'] ??
+            meterMap['chargeable_elapsed_time'] ??
+            root['chargeableElapsedSeconds'] ??
+            root['chargeable_elapsed_seconds'],
+      ),
+      pauseDurationSeconds: _elapsedSeconds(
+        meterMap['pauseDurationSeconds'] ??
+            meterMap['pause_duration_seconds'] ??
+            meterMap['pauseDuration'] ??
+            meterMap['pause_duration'] ??
+            root['pauseDurationSeconds'] ??
+            root['pause_duration_seconds'],
+      ),
+      quotedFareUnchanged: asBool(
+        root['quotedFareUnchanged'] ??
+            root['quoted_fare_unchanged'] ??
+            meterMap['quotedFareUnchanged'] ??
+            meterMap['quoted_fare_unchanged'],
+      ),
+      settlement: meterSettlement(
+        root['settlement'] ?? meterMap['settlement'],
+      ),
+      eligibleStoppedSeconds: asInt(
+        meterMap['eligibleStoppedSeconds'] ??
+            meterMap['eligible_stopped_seconds'] ??
+            root['eligibleStoppedSeconds'] ??
+            root['eligible_stopped_seconds'],
+      ),
+      waitingSeconds: asInt(
+        meterMap['waitingSeconds'] ??
+            meterMap['waiting_seconds'] ??
+            root['waitingSeconds'] ??
+            root['waiting_seconds'],
+      ),
+      excludedStopSeconds: asInt(
+        meterMap['excludedStopSeconds'] ??
+            meterMap['excluded_stop_seconds'] ??
+            root['excludedStopSeconds'] ??
+            root['excluded_stop_seconds'],
+      ),
+      stopStreak: asInt(
+        meterMap['stopStreak'] ??
+            meterMap['stop_streak'] ??
+            root['stopStreak'] ??
+            root['stop_streak'],
+      ),
+      stopPolicy: _stopPolicy(
+        meterMap['stopPolicy'] ??
+            meterMap['stop_policy'] ??
+            root['stopPolicy'] ??
+            root['stop_policy'],
+      ),
+      flagDropCents: asInt(
+        fareMap?['flagDropCents'] ??
+            fareMap?['flag_drop_cents'] ??
+            meterMap['flagDropCents'] ??
+            meterMap['flag_drop_cents'] ??
+            root['flagDropCents'] ??
+            root['flag_drop_cents'],
+      ),
+      distanceChargeCents: asInt(
+        fareMap?['distanceChargeCents'] ??
+            fareMap?['distance_charge_cents'] ??
+            meterMap['distanceChargeCents'] ??
+            meterMap['distance_charge_cents'] ??
+            root['distanceChargeCents'] ??
+            root['distance_charge_cents'],
+      ),
+      waitingChargeCents: asInt(
+        fareMap?['waitingChargeCents'] ??
+            fareMap?['waiting_charge_cents'] ??
+            meterMap['waitingChargeCents'] ??
+            meterMap['waiting_charge_cents'] ??
+            root['waitingChargeCents'] ??
+            root['waiting_charge_cents'],
+      ),
+      totalCents: asInt(
+        fareMap?['totalCents'] ??
+            fareMap?['total_cents'] ??
+            meterMap['totalCents'] ??
+            meterMap['total_cents'] ??
+            root['totalCents'] ??
+            root['total_cents'],
+      ),
+      billedStoppedMinutes: asInt(
+        fareMap?['billedStoppedMinutes'] ??
+            fareMap?['billed_stopped_minutes'] ??
+            meterMap['billedStoppedMinutes'] ??
+            meterMap['billed_stopped_minutes'] ??
+            root['billedStoppedMinutes'] ??
+            root['billed_stopped_minutes'],
+      ),
+      unbilledStoppedRemainderSeconds: asInt(
+        fareMap?['unbilledStoppedRemainderSeconds'] ??
+            fareMap?['unbilled_stopped_remainder_seconds'] ??
+            meterMap['unbilledStoppedRemainderSeconds'] ??
+            meterMap['unbilled_stopped_remainder_seconds'] ??
+            root['unbilledStoppedRemainderSeconds'] ??
+            root['unbilled_stopped_remainder_seconds'],
+      ),
+      waitingPolicyApplied: asBool(
+        fareMap?['waitingPolicyApplied'] ??
+            fareMap?['waiting_policy_applied'] ??
+            meterMap['waitingPolicyApplied'] ??
+            meterMap['waiting_policy_applied'] ??
+            root['waitingPolicyApplied'] ??
+            root['waiting_policy_applied'],
+      ),
+      distanceTimePolicyApplied: asBool(
+        fareMap?['distanceTimePolicyApplied'] ??
+            fareMap?['distance_time_policy_applied'] ??
+            meterMap['distanceTimePolicyApplied'] ??
+            meterMap['distance_time_policy_applied'] ??
+            root['distanceTimePolicyApplied'] ??
+            root['distance_time_policy_applied'],
+      ),
+    );
+  }
+
+  static MeterSettlement? meterSettlement(dynamic raw) {
+    final map = asMap(raw);
+    if (map == null) return null;
+    final billable = asBool(map['billable']);
+    final charged = asBool(
+      map['charged'] ?? map['isCharged'] ?? map['is_charged'],
+    );
+    final status = asNonEmptyString(map['status']);
+    if (billable == null && charged == null && status == null) return null;
+    return MeterSettlement(
+      billable: billable,
+      charged: charged,
+      status: status,
+    );
+  }
+
+  static ({double? amount, String? currency}) _meterMoney(dynamic raw) {
+    if (raw == null) return (amount: null, currency: null);
+    if (raw is num || raw is String) {
+      return (amount: asDouble(raw), currency: null);
+    }
+    final map = asMap(raw);
+    if (map == null) return (amount: null, currency: null);
+    return (
+      amount: asDouble(
+        map['amount'] ??
+            map['value'] ??
+            map['provisionalFare'] ??
+            map['provisional_fare'],
+      ),
+      currency: asNonEmptyString(map['currency'] ?? map['code']),
+    );
+  }
+
+  static String? _stopPolicy(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is String) return asNonEmptyString(raw);
+    final map = asMap(raw);
+    if (map == null) return null;
+    return asNonEmptyString(
+      map['name'] ?? map['label'] ?? map['id'] ?? map['code'],
+    );
+  }
+
+  /// POST meter-payment/payment-intent. Client secret stays off the UI record.
+  ///
+  /// Accepts the backend top-level payload and a `{ success, data }` envelope.
+  static MeterPaymentIntentResult meterPaymentIntent(dynamic raw) {
+    if (raw is! Map) return const MeterPaymentIntentResult();
+    final root = _unwrapSuccessData(Map<String, dynamic>.from(raw));
+    final key = asNonEmptyString(
+      root['publishableKey'] ?? root['publishable_key'],
+    );
+    return MeterPaymentIntentResult(
+      record: meterPayment(root),
+      clientSecret: _paymentIntentClientSecret(root),
+      paymentIntentId: _paymentIntentId(root),
+      publishableKey: (key != null && key.startsWith('pk_')) ? key : null,
+    );
+  }
+
+  static Map<String, dynamic> _unwrapSuccessData(Map<String, dynamic> root) {
+    final data = asMap(root['data']);
+    if (data == null) return root;
+    final looksLikeIntent =
+        data.containsKey('paymentIntentClientSecret') ||
+        data.containsKey('payment_intent_client_secret') ||
+        data.containsKey('clientSecret') ||
+        data.containsKey('client_secret') ||
+        data.containsKey('paymentIntentId') ||
+        data.containsKey('publishableKey') ||
+        data.containsKey('finalFareCents') ||
+        data.containsKey('bookingId');
+    if (!looksLikeIntent) return root;
+    return data;
+  }
+
+  static String? _paymentIntentClientSecret(Map<String, dynamic> root) {
+    final direct = asNonEmptyString(
+      root['paymentIntentClientSecret'] ??
+          root['payment_intent_client_secret'] ??
+          root['clientSecret'] ??
+          root['client_secret'],
+    );
+    if (direct != null) return direct;
+    for (final key in [
+      'payment',
+      'paymentIntent',
+      'payment_intent',
+      'intent',
+      'meterPayment',
+      'meter_payment',
+    ]) {
+      final nested = asMap(root[key]);
+      if (nested == null) continue;
+      final secret = asNonEmptyString(
+        nested['paymentIntentClientSecret'] ??
+            nested['payment_intent_client_secret'] ??
+            nested['clientSecret'] ??
+            nested['client_secret'],
+      );
+      if (secret != null) return secret;
+      final deeper = _paymentIntentClientSecret(nested);
+      if (deeper != null) return deeper;
+    }
+    return null;
+  }
+
+  static String? _paymentIntentId(Map<String, dynamic> root) {
+    final direct = asNonEmptyString(
+      root['paymentIntentId'] ?? root['payment_intent_id'],
+    );
+    if (direct != null) return direct;
+    for (final key in [
+      'payment',
+      'paymentIntent',
+      'payment_intent',
+      'intent',
+      'meterPayment',
+      'meter_payment',
+    ]) {
+      final nested = asMap(root[key]);
+      if (nested == null) continue;
+      final id = asNonEmptyString(
+        nested['paymentIntentId'] ??
+            nested['payment_intent_id'] ??
+            nested['id'],
+      );
+      if (id != null && id.startsWith('pi_')) return id;
+      final deeper = _paymentIntentId(nested);
+      if (deeper != null) return deeper;
+    }
+    return null;
+  }
+
+  /// GET meter-payment, receipt, unpaid, and `booking:meter_payment`.
+  static MeterPaymentRecord? meterPayment(dynamic raw) {
+    if (raw is! Map) return null;
+    final root = Map<String, dynamic>.from(raw);
+    final nested = asMap(root['meterPayment'] ?? root['meter_payment']);
+    if (nested != null) {
+      final parsed = meterPayment(nested);
+      if (parsed == null) return _meterPaymentFromMap(root);
+      final hostedUrl = asNonEmptyString(
+        root['hostedUrl'] ??
+            root['hosted_url'] ??
+            root['checkoutUrl'] ??
+            root['checkout_url'] ??
+            root['url'],
+      );
+      if (hostedUrl != null &&
+          (parsed.hostedUrl == null || parsed.hostedUrl!.isEmpty)) {
+        return parsed.copyWith(hostedUrl: hostedUrl);
+      }
+      return parsed;
+    }
+    return _meterPaymentFromMap(root);
+  }
+
+  static MeterPaymentRecord? _meterPaymentFromMap(Map<String, dynamic> root) {
+    final payment = asMap(root['payment']);
+    final fare = asMap(root['fare']) ??
+        asMap(root['fareBreakdown']) ??
+        asMap(root['fare_breakdown']);
+    final paymentStatusRaw = asNonEmptyString(
+      root['paymentStatus'] ??
+          root['payment_status'] ??
+          payment?['status'] ??
+          payment?['paymentStatus'] ??
+          root['status'],
+    );
+    final paymentMode = asNonEmptyString(
+      root['paymentMode'] ??
+          root['payment_mode'] ??
+          payment?['mode'] ??
+          payment?['paymentMode'],
+    );
+    final fareClassification = asNonEmptyString(
+      root['fareClassification'] ??
+          root['fare_classification'] ??
+          fare?['classification'] ??
+          fare?['fareClassification'],
+    );
+    final meterSessionId = asNonEmptyString(
+      root['meterSessionId'] ??
+          root['meter_session_id'] ??
+          root['sessionId'] ??
+          root['session_id'],
+    );
+    final finalFareCents = asInt(
+      root['finalFareCents'] ??
+          root['final_fare_cents'] ??
+          fare?['finalFareCents'] ??
+          fare?['final_fare_cents'] ??
+          fare?['totalCents'] ??
+          fare?['total_cents'],
+    );
+    final paymentRequired = asBool(
+      root['paymentRequired'] ?? root['payment_required'],
+    );
+    final paymentVersion = asInt(
+      root['paymentVersion'] ?? root['payment_version'],
+    );
+    final hostedUrl = asNonEmptyString(
+      root['hostedUrl'] ??
+          root['hosted_url'] ??
+          root['checkoutUrl'] ??
+          root['checkout_url'] ??
+          root['url'],
+    );
+    final receiptAvailable = asBool(
+      root['receiptAvailable'] ?? root['receipt_available'],
+    );
+    final receiptUrl = asNonEmptyString(
+      root['receiptUrl'] ?? root['receipt_url'],
+    );
+    final testMode = asBool(root['testMode'] ?? root['test_mode']);
+    final productionCharge = asBool(
+      root['productionCharge'] ?? root['production_charge'],
+    );
+    final status = MeterPaymentStatusParsing.fromRaw(paymentStatusRaw);
+    final hasMeterSignal =
+        _looksLikeMeterValue(paymentMode) ||
+        _looksLikeMeterValue(fareClassification) ||
+        (meterSessionId != null && meterSessionId.isNotEmpty) ||
+        finalFareCents != null ||
+        paymentRequired != null ||
+        paymentVersion != null ||
+        hostedUrl != null ||
+        receiptAvailable != null ||
+        receiptUrl != null ||
+        testMode != null ||
+        productionCharge != null ||
+        status != MeterPaymentStatus.unknown;
+    if (!hasMeterSignal) return null;
+
+    final record = MeterPaymentRecord(
+      bookingId: asNonEmptyString(
+        root['bookingId'] ??
+            root['booking_id'] ??
+            asMap(root['booking'])?['id'] ??
+            asMap(root['booking'])?['bookingId'] ??
+            root['id'],
+      ),
+      rideStatus: asNonEmptyString(
+        root['rideStatus'] ?? root['ride_status'],
+      ),
+      paymentStatus: status,
+      paymentStatusRaw: paymentStatusRaw,
+      paymentRequired: paymentRequired,
+      paymentMode: paymentMode,
+      finalFareCents: finalFareCents,
+      currency: asNonEmptyString(
+        root['currency'] ?? fare?['currency'] ?? payment?['currency'],
+      ),
+      meterSessionId: meterSessionId,
+      completedAt: asDateTime(
+        root['completedAt'] ?? root['completed_at'],
+      ),
+      paidAt: asDateTime(root['paidAt'] ?? root['paid_at']),
+      receiptAvailable: receiptAvailable,
+      receiptUrl: receiptUrl,
+      hostedUrl: hostedUrl,
+      testMode: testMode,
+      fareClassification: fareClassification,
+      paymentVersion: paymentVersion,
+      productionCharge: productionCharge,
+      flagDropCents: asInt(
+        root['flagDropCents'] ??
+            root['flag_drop_cents'] ??
+            fare?['flagDropCents'] ??
+            fare?['flag_drop_cents'],
+      ),
+      distanceChargeCents: asInt(
+        root['distanceChargeCents'] ??
+            root['distance_charge_cents'] ??
+            fare?['distanceChargeCents'] ??
+            fare?['distance_charge_cents'],
+      ),
+      waitingChargeCents: asInt(
+        root['waitingChargeCents'] ??
+            root['waiting_charge_cents'] ??
+            fare?['waitingChargeCents'] ??
+            fare?['waiting_charge_cents'],
+      ),
+      totalCents: asInt(
+        root['totalCents'] ??
+            root['total_cents'] ??
+            fare?['totalCents'] ??
+            fare?['total_cents'],
+      ),
+    );
+    return record.hasRecord ? record : null;
+  }
+
+  static bool _looksLikeMeterValue(String? raw) {
+    final value = raw?.trim().toLowerCase() ?? '';
+    if (value.isEmpty) return false;
+    return value.contains('meter') || value.contains('soft');
+  }
+
+  static int? _elapsedSeconds(dynamic raw) {
+    if (raw == null) return null;
+    if (raw is Duration) return raw.inSeconds;
+    final asNumber = asInt(raw);
+    if (asNumber != null) return asNumber;
+    final text = asNonEmptyString(raw);
+    if (text == null) return null;
+    final parts = text.split(':');
+    if (parts.length == 2 || parts.length == 3) {
+      final nums = parts.map(int.tryParse).toList();
+      if (nums.contains(null)) return null;
+      if (parts.length == 2) {
+        return nums[0]! * 60 + nums[1]!;
+      }
+      return nums[0]! * 3600 + nums[1]! * 60 + nums[2]!;
+    }
+    return null;
   }
 }

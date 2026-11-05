@@ -42,8 +42,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     super.initState();
     _emailController = TextEditingController();
     _passwordController = TextEditingController();
-    _emailController.addListener(_clearError);
-    _passwordController.addListener(_clearError);
+    _emailController.addListener(_onCredentialsChanged);
+    _passwordController.addListener(_onCredentialsChanged);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -58,13 +58,11 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     });
   }
 
-  void _clearError() {
-    if (_errorMessage != null || _successMessage != null) {
-      setState(() {
-        _errorMessage = null;
-        _successMessage = null;
-      });
-    }
+  void _onCredentialsChanged() {
+    setState(() {
+      _errorMessage = null;
+      _successMessage = null;
+    });
   }
 
   bool get _isEmailValid => _emailRegex.hasMatch(_emailController.text.trim());
@@ -75,8 +73,8 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
 
   @override
   void dispose() {
-    _emailController.removeListener(_clearError);
-    _passwordController.removeListener(_clearError);
+    _emailController.removeListener(_onCredentialsChanged);
+    _passwordController.removeListener(_onCredentialsChanged);
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
